@@ -21,9 +21,18 @@ const greeting = () => {
 
 export default function Home() {
   const [query, setQuery] = useState<string | null>(null)
+  // Asked by voice: keep the conversation in voice mode (compact "Ask a follow-up…" bar)
+  const [voice, setVoice] = useState(false)
+  const ask = (text: string, viaVoice = false) => {
+    setQuery(text)
+    if (viaVoice) setVoice(true)
+  }
   // "New chat" navigates to / again: start over
   const { key } = useLocation()
-  useEffect(() => setQuery(null), [key])
+  useEffect(() => {
+    setQuery(null)
+    setVoice(false)
+  }, [key])
 
   // Mock answer: whatever was asked, Claude replies with the Basel globe right in the chat
   if (query) {
@@ -41,7 +50,12 @@ export default function Home() {
           <GlobeView key={query} />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
-          <ChatInput onSend={setQuery} placeholder="Reply to Claude…" />
+          <ChatInput
+            onSend={ask}
+            placeholder="Reply to Claude…"
+            voiceMode={voice}
+            onEndVoice={() => setVoice(false)}
+          />
         </div>
       </main>
     )
@@ -54,7 +68,7 @@ export default function Home() {
         {greeting()}, John Doe
       </h1>
       <div className="w-full max-w-2xl">
-        <ChatInput onSend={setQuery} />
+        <ChatInput onSend={ask} />
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {SUGGESTIONS.map(({ icon: Icon, label }) => (
             <button

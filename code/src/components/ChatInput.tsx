@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUp, Mic, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowUp, Keyboard, Mic, Plus, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
 
 const iconBtn = 'grid size-8 place-items-center rounded-lg border border-border text-muted hover:bg-bubble'
@@ -18,11 +18,21 @@ const AUTO_SEND_MS = 2500
 
 const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-export default function ChatInput({ onSend, placeholder = 'How can I help you today?' }: {
-  onSend?: (text: string) => void
+export default function ChatInput({
+  onSend,
+  placeholder = 'How can I help you today?',
+  voiceMode = false,
+  onEndVoice,
+}: {
+  /** viaVoice: the message came from the mic, so the conversation continues in voice mode */
+  onSend?: (text: string, viaVoice?: boolean) => void
   placeholder?: string
+  /** Show the compact voice bar ("Ask a follow-up…") instead of the text box */
+  voiceMode?: boolean
+  onEndVoice?: () => void
 }) {
   const [text, setText] = useState('')
+  const [typing, setTyping] = useState(false)
   const [listening, setListening] = useState(false)
   const [seconds, setSeconds] = useState(0)
 
@@ -50,7 +60,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
     const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setText(t), ms))
     // Mock "sends automatically when you pause": the transcript finishes at ~2.1s
     const autoSend = setTimeout(() => {
-      onSend?.(MOCK_TRANSCRIPT)
+      onSend?.(MOCK_TRANSCRIPT, true)
       setText('')
       setListening(false)
     }, AUTO_SEND_MS)
@@ -63,6 +73,40 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
       window.removeEventListener('keydown', onKey)
     }
   }, [listening])
+
+  if (voiceMode && !listening && !typing) {
+    // Original voice bar (from GlobeView before 16ecb5a): live waveform, slides in with animate-bar-in
+    const barBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
+    return (
+      <div className="flex justify-center">
+        <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
+          <Waveform bars={10} className="h-5 shrink-0" />
+          <input
+            value={text}
+            placeholder="Ask a follow-up..."
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+          />
+          <button aria-label="Type instead" onClick={() => setTyping(true)} className={barBtn}>
+            <Keyboard size={16} />
+          </button>
+          <button aria-label="Voice input" onClick={startListening} className={barBtn}>
+            <Mic size={16} />
+          </button>
+          <button
+            onClick={() => {
+              setText('')
+              onEndVoice?.()
+            }}
+            className="h-10 rounded-xl bg-clay px-4 text-sm font-medium text-bg hover:bg-clay-dark"
+          >
+            End
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
