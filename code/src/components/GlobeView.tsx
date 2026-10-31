@@ -5,10 +5,10 @@ import Globe from './Globe'
 import PlaceCards from './PlaceCards'
 import Waveform from './Waveform'
 import ClaudeLogo from './ClaudeLogo'
-import { BASEL_FIT_PADDING, BASEL_PLACES, BASEL_TITLE } from '../data/basel'
+import { BASEL_CAMERA, BASEL_PLACES, BASEL_TITLE } from '../data/basel'
 
 // How long the globe spins before we fly to the destination
-const GLOBE_INTRO_MS = 1000
+const GLOBE_INTRO_MS = 500
 const FLY_DURATION_MS = 2500
 
 const iconBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
@@ -25,15 +25,8 @@ export default function GlobeView({ onClose }: { onClose: () => void }) {
   const handleLoad = (m: mapboxgl.Map, stopSpin: () => void) => {
     timer.current = setTimeout(() => {
       stopSpin()
-      // Fit all places with room for their cards; flat map (no pitch/bearing) for now
-      const bounds = new mapboxgl.LngLatBounds()
-      BASEL_PLACES.forEach((p) => bounds.extend(p.lngLat))
-      // cameraForBounds returns undefined if the padding doesn't fit (small screens) → plain fallback
-      const camera = m.cameraForBounds(bounds, { padding: BASEL_FIT_PADDING, bearing: 0, pitch: 0 }) ?? {
-        center: bounds.getCenter(),
-        zoom: 14,
-      }
-      m.flyTo({ ...camera, bearing: 0, pitch: 0, duration: FLY_DURATION_MS, essential: true })
+      // Fixed end view (see BASEL_CAMERA); flat map (no pitch/bearing) for now
+      m.flyTo({ ...BASEL_CAMERA, bearing: 0, pitch: 0, duration: FLY_DURATION_MS, essential: true })
       // Registered after flyTo, so the interrupted spin animation's moveend doesn't count
       m.once('moveend', () => {
         setMap(m)

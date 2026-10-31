@@ -20,8 +20,8 @@ export type Place = {
 
 export const BASEL_TITLE = 'Five places for your first day in Basel'
 
-/** Screen space (px) kept free around the places when fitting the camera, so the cards fit around them */
-export const BASEL_FIT_PADDING = { top: 300, bottom: 320, left: 340, right: 340 }
+/** Where the camera ends up after flying in. Tweak center ([lng, lat]) to pan and zoom to zoom in/out. */
+export const BASEL_CAMERA = { center: [7.5848, 47.5554] as [number, number], zoom: 14.25 }
 
 // Halloween night out, in order of the evening
 export const BASEL_PLACES: Place[] = [
@@ -31,7 +31,7 @@ export const BASEL_PLACES: Place[] = [
     time: 'Tonight · 18:00',
     tag: 'Groups of 4–6',
     description: '60 minutes to break out of a medieval crypt.',
-    lngLat: [7.5813, 47.5588],
+    lngLat: [7.5751474526515326, 47.55743717864846],
     icon: Lock,
     tint: '#2c2840',
     iconColor: '#a99ff0',
@@ -43,8 +43,8 @@ export const BASEL_PLACES: Place[] = [
     name: 'Street-Food Night Market',
     time: 'Tonight · 19:30',
     tag: 'Free entry',
-    description: 'Food trucks, pumpkin everything and fire pits.',
-    lngLat: [7.5881, 47.5581],
+    description: 'Food trucks, pumpkin treats and fire pits.',
+    lngLat: [7.5878, 47.5545],
     icon: Soup,
     tint: '#4a3222',
     iconColor: '#e8a571',
@@ -70,7 +70,7 @@ export const BASEL_PLACES: Place[] = [
     time: 'Tonight · 22:30',
     tag: '18+ · Costume party',
     description: 'Rooftop bar and club on the 31st floor.',
-    lngLat: [7.5941, 47.5541],
+    lngLat: [7.59446528147669, 47.54905311106348],
     icon: Building2,
     tint: '#4a2226',
     iconColor: '#e8828a',
@@ -83,7 +83,7 @@ export const BASEL_PLACES: Place[] = [
     time: 'Tonight · 00:30',
     tag: 'Glow dress code',
     description: 'UV lights and glow paint until sunrise.',
-    lngLat: [7.5878, 47.5545],
+    lngLat: [7.586377081486984, 47.550733762418666],
     icon: Ghost, // Lucide has no pumpkin
     tint: '#2e2240',
     iconColor: '#f0a050',

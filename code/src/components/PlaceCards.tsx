@@ -3,8 +3,8 @@ import mapboxgl from 'mapbox-gl'
 import type { Place } from '../data/basel'
 
 const CLAY = '#d97757' // --color-clay; Mapbox markers need a literal color
-const CARD_WIDTH = 240
-const CARD_HEIGHT = 210 // approximate, used to keep cards on screen
+const CARD_WIDTH = 200
+const CARD_HEIGHT = 260 // approximate, used to keep cards on screen
 // Keep cards clear of the screen edges, the top buttons and the bottom voice bar
 const SAFE = { top: 76, bottom: 100, side: 16 }
 
@@ -75,11 +75,11 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
           style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
         >
           <div
-            className="animate-card-in overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
+            className="animate-card-in overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
             style={{ animationDelay: '200ms' }}
           >
             {/* Header: photo, or tinted placeholder with an icon */}
-            <div className="relative h-24" style={{ background: place.tint }}>
+            <div className="relative h-32" style={{ background: place.tint }}>
               {place.image ? (
                 <img src={place.image} alt={place.name} className="size-full object-cover" />
               ) : (
@@ -100,19 +100,14 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
               </span>
             </div>
 
-            <div className="p-3">
+            <div className="p-3 pb-4">
               {/* Name always on one line (truncates as a last resort) */}
-              <h3 className="truncate font-serif text-base leading-tight" title={place.name}>
+              <h3 className="truncate font-serif text-[15px] leading-tight" title={place.name}>
                 {place.name}
               </h3>
-              <span className="mt-1 inline-block rounded-full border border-[#8b83d8]/70 px-2 py-px text-[10px] font-medium text-[#b9b2f5]">
-                {place.tag}
-              </span>
-              {/* Details sits on the description's last line */}
-              <div className="mt-1 flex items-end gap-3">
-                <p className="flex-1 text-xs leading-snug text-muted">{place.description}</p>
-                <button className="shrink-0 text-xs font-medium text-clay hover:text-clay-dark">Details →</button>
-              </div>
+              {/* Fixed two-line block so every card has the same height */}
+              <p className="mt-1.5 line-clamp-2 h-[2lh] text-xs leading-snug text-muted">{place.description}</p>
+              <button className="mt-3 text-xs font-medium text-clay hover:text-clay-dark">Details →</button>
             </div>
           </div>
         </article>
