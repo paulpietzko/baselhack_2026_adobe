@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
-import { BookOpen, Code, Coffee, Lightbulb, PenLine } from 'lucide-react'
+import { BookOpen, Code, Coffee, Lightbulb, PenLine, Sparkles } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
 import GlobeView from '../components/GlobeView'
@@ -14,6 +14,9 @@ const SUGGESTIONS = [
   { icon: Lightbulb, label: "Claude's choice" },
 ]
 
+// Intents "detected" from the conversation once the hidden gem is unlocked
+const INTENTS = ['Techno', 'Hardcore', 'Late night']
+
 const greeting = () => {
   const h = new Date().getHours()
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
@@ -23,8 +26,11 @@ export default function Home() {
   const [query, setQuery] = useState<string | null>(null)
   // Asked by voice: keep the conversation in voice mode (compact "Ask a follow-up…" bar)
   const [voice, setVoice] = useState(false)
+  // Demo: pressing "a" unlocks the hidden gem (Club Rouge) on the map
+  const [unlocked, setUnlocked] = useState(false)
   const ask = (text: string, viaVoice = false) => {
     setQuery(text)
+    setUnlocked(false)
     if (viaVoice) setVoice(true)
   }
   // "New chat" navigates to / again: start over
@@ -32,7 +38,19 @@ export default function Home() {
   useEffect(() => {
     setQuery(null)
     setVoice(false)
+    setUnlocked(false)
   }, [key])
+
+  useEffect(() => {
+    if (!query) return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key.toLowerCase() === 'a') setUnlocked(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [query])
 
   // Mock answer: whatever was asked, Claude replies with the Basel globe right in the chat
   if (query) {
@@ -47,9 +65,25 @@ export default function Home() {
               <ClaudeLogo size={20} /> {BASEL_TITLE}
             </p>
           </div>
-          <GlobeView key={query} />
+          <GlobeView key={query} unlocked={unlocked} />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
+          {unlocked && (
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+              <span className="flex animate-card-in items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-semibold text-bg shadow-[0_0_24px_rgb(217_119_87/0.5)]">
+                <Sparkles size={13} /> Hidden gem unlocked
+              </span>
+              {INTENTS.map((intent, i) => (
+                <span
+                  key={intent}
+                  className="animate-card-in rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur"
+                  style={{ animationDelay: `${150 + i * 100}ms` }}
+                >
+                  {intent}
+                </span>
+              ))}
+            </div>
+          )}
           <ChatInput
             onSend={ask}
             placeholder="Reply to Claude…"

@@ -9,12 +9,14 @@ import { BASEL_CAMERA, BASEL_PLACES } from '../data/basel'
 const GLOBE_INTRO_MS = 500
 const FLY_DURATION_MS = 2500
 
+const VISIBLE_PLACES = BASEL_PLACES.filter((p) => !p.hidden)
+
 /**
  * Globe embedded in a Claude answer: spins, flies to Basel, shows places. No frame, like a Vision Pro persona:
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView() {
+export default function GlobeView({ unlocked = false }: { unlocked?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
 
@@ -37,7 +39,7 @@ export default function GlobeView() {
         <Globe className="size-full" onLoad={handleLoad} />
       </div>
 
-      {map && <PlaceCards map={map} places={BASEL_PLACES} />}
+      {map && <PlaceCards map={map} places={unlocked ? BASEL_PLACES : VISIBLE_PLACES} />}
 
       {map && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-16 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">

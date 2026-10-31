@@ -16,6 +16,8 @@ export type Place = {
   cardAngle: number
   cardDistance: number
   image?: string
+  /** Hidden gem: only shown once unlocked (demo: press "a") */
+  hidden?: boolean
 }
 
 export const BASEL_TITLE = 'Five places for your first day in Basel'
@@ -75,6 +77,7 @@ export const BASEL_PLACES: Place[] = [
     icon: Building2,
     tint: '#4a2226',
     iconColor: '#e8828a',
+    hidden: true,
     cardAngle: 20,
     cardDistance: 230,
   },

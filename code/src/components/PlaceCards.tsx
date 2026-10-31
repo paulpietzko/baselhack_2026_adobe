@@ -78,7 +78,9 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
           style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
         >
           <div
-            className="spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03]"
+            className={`spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03] ${
+              place.hidden ? 'ring-2 ring-clay/70 shadow-[0_0_40px_rgb(217_119_87/0.45)]' : ''
+            }`}
             style={{ animationDelay: '200ms' }}
           >
             {/* Inset header: photo, or the place's tint with its icon */}
