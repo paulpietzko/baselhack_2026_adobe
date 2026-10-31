@@ -107,10 +107,11 @@ export default function ShopDetails({ map, building, choice, onBack }: {
       {/* Bottom left: the mall */}
       <article className={`${card} absolute bottom-4 left-4 w-[300px] sidebar-collapsed:bottom-6 sidebar-collapsed:left-6`} style={{ animationDelay: '100ms' }}>
         <div
-          className="relative h-28 overflow-hidden rounded-[20px]"
-          style={{ background: `radial-gradient(120% 140% at 80% 0%, ${color.hex}cc, #17151c 70%)` }}
+          className="relative h-32 overflow-hidden rounded-[20px] bg-[#17151c]"
         >
-          <ShoppingBag size={64} strokeWidth={1.2} className="absolute right-4 bottom-3 text-white/25" />
+          <img src="/shopping_mall.jpg" alt={SHOP.name} className="absolute inset-0 size-full object-cover" />
+          {/* A wash in the look's colour from the bottom, so the label stays readable */}
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${color.hex}b3, transparent 60%)` }} />
           <span className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-black">
             <Sparkles size={11} /> Has your look
           </span>

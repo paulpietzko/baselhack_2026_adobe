@@ -154,8 +154,8 @@ const SHOP_FLY_MS = 3000
 const SHOP_RISE_MS = 1400
 
 /**
- * Light up the mall like bako lights up a bakery, but in the colour of the look: the building rises out of the ground,
- * a glowing outline pulses around its footprint. Returns its footprint (for the beacon) and a cleanup.
+ * Light up the mall like bako lights up a bakery, but in the colour of the look: the building rises out of the ground.
+ * Returns its footprint (for the beacon) and a cleanup.
  */
 function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding | null; cleanup: () => void } {
   const p = m.project(SHOP.lngLat)
@@ -172,12 +172,6 @@ function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding
   const base = { source: 'composite', 'source-layer': 'building', filter }
   m.addLayer({
     ...base,
-    id: 'shop-glow',
-    type: 'line',
-    paint: { 'line-color': color, 'line-width': 10, 'line-blur': 8, 'line-opacity': 0.9 },
-  })
-  m.addLayer({
-    ...base,
     id: 'shop-building',
     type: 'fill-extrusion',
     paint: {
@@ -188,22 +182,16 @@ function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding
       'fill-extrusion-vertical-gradient': true,
     },
   })
-  // Rise with an ease-out, then keep the outline breathing
+  // Rise with an ease-out
   const start = performance.now()
-  let risen = false
   let frame = requestAnimationFrame(function tick(now) {
     if (!m.getLayer('shop-building')) return
     const t = Math.min(1, (now - start) / SHOP_RISE_MS)
     const k = 1 - (1 - t) ** 3
-    if (!risen) {
-      risen = t === 1
-      m.setPaintProperty('shop-building', 'fill-extrusion-height', [
-        '+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], k],
-      ] as unknown as mapboxgl.ExpressionSpecification)
-    }
-    m.setPaintProperty('shop-glow', 'line-opacity', 0.45 + 0.45 * Math.sin((now - start) / 450) ** 2)
-    m.setPaintProperty('shop-glow', 'line-width', 8 + 10 * Math.sin((now - start) / 450) ** 2)
-    frame = requestAnimationFrame(tick)
+    m.setPaintProperty('shop-building', 'fill-extrusion-height', [
+      '+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], k],
+    ] as unknown as mapboxgl.ExpressionSpecification)
+    if (t < 1) frame = requestAnimationFrame(tick)
   })
   const { geometry: g, properties } = building as unknown as { geometry: { type: string; coordinates: unknown }; properties: Record<string, unknown> | null }
   const polygons = (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []) as number[][][][]
@@ -216,7 +204,7 @@ function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding
     },
     cleanup: () => {
       cancelAnimationFrame(frame)
-      for (const id of ['shop-building', 'shop-glow']) if (m.getLayer(id)) m.removeLayer(id)
+      if (m.getLayer('shop-building')) m.removeLayer('shop-building')
       if (m.getLayer('3d-buildings')) m.setFilter('3d-buildings', before ?? (EXTRUDED as unknown as mapboxgl.FilterSpecification))
     },
   }
