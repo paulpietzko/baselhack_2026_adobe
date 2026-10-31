@@ -87,7 +87,7 @@ export const BASEL_PLACES: Place[] = [
     icon: Ghost, // Lucide has no pumpkin
     tint: '#2e2240',
     iconColor: '#f0a050',
-    cardAngle: 150,
-    cardDistance: 230,
+    cardAngle: 205,
+    cardDistance: 270,
   },
 ]
