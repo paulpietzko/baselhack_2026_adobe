@@ -13,7 +13,7 @@ export default function TopBar() {
       >
         {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
       </button>
-      <button className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-bubble">
+      <button className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm bg-bubble">
         <Share size={14} /> Share
       </button>
     </header>

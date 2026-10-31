@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUp, Keyboard, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowUp, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
 import { useSpeech } from '../hooks/useSpeech'
 
@@ -22,21 +22,18 @@ const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padSta
 export default function ChatInput({
   onSend,
   placeholder = 'How can I help you today?',
-  voiceMode = false,
-  onEndVoice,
+  compact = false,
 }: {
-  /** viaVoice: the message came from the mic, so the conversation continues in voice mode */
-  onSend?: (text: string, viaVoice?: boolean) => void
+  onSend?: (text: string) => void
   placeholder?: string
-  /** Show the compact voice bar ("Ask a follow-up…") instead of the text box */
-  voiceMode?: boolean
-  onEndVoice?: () => void
+  /** Start as a slim one-line pill that expands into the full box when clicked */
+  compact?: boolean
 }) {
   const [text, setText] = useState('')
-  const [typing, setTyping] = useState(false)
+  const [open, setOpen] = useState(false)
   const [seconds, setSeconds] = useState(0)
-  // Real speech-to-text: sends by itself when you pause, and keeps the conversation in voice mode
-  const speech = useSpeech((heard) => onSend?.(heard, true))
+  // Real speech-to-text: sends by itself when you pause
+  const speech = useSpeech((heard) => onSend?.(heard))
   // Presentation mock: same UI as the real mic, scripted transcript
   const [mock, setMock] = useState(false)
   const [mockText, setMockText] = useState('')
@@ -55,7 +52,7 @@ export default function ChatInput({
     const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setMockText(t), ms))
     const autoSend = setTimeout(() => {
       setMock(false)
-      onSend?.(MOCK_TRANSCRIPT, true)
+      onSend?.(MOCK_TRANSCRIPT)
     }, MOCK_AUTO_SEND_MS)
     return () => {
       interim.forEach(clearTimeout)
@@ -66,7 +63,7 @@ export default function ChatInput({
   const send = () => {
     if (mock) {
       setMock(false)
-      if (mockText) onSend?.(mockText, true)
+      if (mockText) onSend?.(mockText)
       return
     }
     if (listening) return speech.stop() // sends what was heard
@@ -87,117 +84,108 @@ export default function ChatInput({
     }
   }, [listening, mock]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (voiceMode && !listening && !typing) {
-    // Original voice bar (from GlobeView before 16ecb5a): live waveform, slides in with animate-bar-in
-    const barBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
-    return (
-      <div className="flex justify-center">
-        <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
-          <Waveform stream={speech.stream} mock bars={10} className="h-5 shrink-0" />
-          <input
-            value={text}
-            placeholder="Ask a follow-up..."
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-          />
-          <button aria-label="Type instead" onClick={() => setTyping(true)} className={barBtn}>
-            <Keyboard size={16} />
-          </button>
-          <button aria-label="Voice input" onClick={speech.start} disabled={!speech.supported} className={barBtn}>
-            <Mic size={16} />
-          </button>
-          <button aria-label="Mock voice input (presentation)" title="Mock voice (presentation)" onClick={startMock} className={barBtn}>
-            <Presentation size={16} />
-          </button>
-          <button
-            onClick={() => {
-              setText('')
-              onEndVoice?.()
-            }}
-            className="h-10 rounded-xl bg-clay px-4 text-sm font-medium text-bg hover:bg-clay-dark"
-          >
-            End
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const collapsed = compact && !open && !text && !listening
 
   return (
-    <div>
-      <div
-        className={`rounded-2xl border bg-surface p-3 shadow-[0_4px_20px_rgba(0,0,0,0.25)] ${
-          listening ? 'border-clay ring-4 ring-clay/15' : 'border-border focus-within:border-border-strong'
-        }`}
-      >
-        <textarea
-          rows={2}
-          value={listening ? heardText : text}
-          readOnly={listening}
-          placeholder={listening ? '' : placeholder}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              send()
-            }
-          }}
-          className={`w-full resize-none bg-transparent px-1 outline-none transition-colors duration-300 placeholder:text-muted ${
-            listening && !heardFinal ? 'text-muted' : ''
+    <div className={`mx-auto w-full transition-[max-width] duration-300 ${collapsed ? 'max-w-md' : 'max-w-3xl'}`}>
+      {collapsed ? (
+        <div
+          onClick={() => setOpen(true)}
+          className="flex cursor-text items-center gap-1 rounded-full border border-border bg-surface py-1.5 pr-1.5 pl-4 shadow-[0_4px_20px_rgba(0,0,0,0.18)] hover:border-border-strong"
+        >
+          <span className="flex-1 truncate text-sm text-muted">{placeholder}</span>
+          <button
+            aria-label="Voice input"
+            onClick={(e) => {
+              e.stopPropagation()
+              speech.start()
+            }}
+            disabled={!speech.supported}
+            className="grid size-8 place-items-center rounded-full text-muted hover:bg-bubble hover:text-ink disabled:opacity-40"
+          >
+            <Mic size={16} />
+          </button>
+          <span className="grid size-8 place-items-center rounded-full bg-clay text-white opacity-50">
+            <ArrowUp size={15} strokeWidth={2.5} />
+          </span>
+        </div>
+      ) : (
+        <div
+          // Leaving the box empty folds it back into the pill
+          onBlur={(e) => compact && !text && !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}
+          className={`rounded-2xl border bg-surface p-3 shadow-[0_4px_20px_rgba(0,0,0,0.25)] ${
+            listening ? 'border-clay ring-4 ring-clay/15' : 'border-border focus-within:border-border-strong'
           }`}
-        />
+        >
+          <textarea
+            rows={2}
+            autoFocus={compact}
+            value={listening ? heardText : text}
+            readOnly={listening}
+            placeholder={listening ? '' : placeholder}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                send()
+              }
+            }}
+            className={`w-full resize-none bg-transparent px-1 outline-none transition-colors duration-300 placeholder:text-muted ${
+              listening && !heardFinal ? 'text-muted' : ''
+            }`}
+          />
 
-        {listening ? (
-          <div className="flex items-center gap-3">
-            <span className="relative grid size-3.5 place-items-center">
-              <span className="absolute inset-0 animate-ping rounded-full bg-clay/40" />
-              <span className="size-2.5 rounded-full bg-clay ring-2 ring-clay/30" />
-            </span>
-            <span className="text-sm font-medium">Listening</span>
-            <span className="text-sm text-muted tabular-nums">{formatTime(seconds)}</span>
-            <Waveform stream={speech.stream} mock={mock} className="ml-2 h-6" />
-            <button aria-label="Cancel voice input" onClick={cancel} className={`ml-auto ${iconBtn} size-9`}>
-              <X size={16} />
-            </button>
-            <button
-              onClick={send}
-              className="flex items-center gap-2 rounded-lg bg-clay px-4 py-2 text-sm font-medium text-bg hover:bg-clay-dark"
-            >
-              <span className="size-2.5 rounded-[2px] bg-bg" /> Send
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button className={iconBtn}><Plus size={16} /></button>
-            <button className={iconBtn}><SlidersHorizontal size={15} /></button>
-            <button
-              aria-label="Voice input"
-              title={speech.supported ? 'Voice input' : 'Voice input needs Chrome, Edge or Safari'}
-              onClick={speech.start}
-              disabled={!speech.supported}
-              className="ml-auto grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink disabled:opacity-40"
-            >
-              <Mic size={17} />
-            </button>
-            <button
-              aria-label="Mock voice input (presentation)"
-              title="Mock voice (presentation)"
-              onClick={startMock}
-              className="grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink"
-            >
-              <Presentation size={17} />
-            </button>
-            <button
-              onClick={send}
-              disabled={!text.trim()}
-              className="grid size-8 place-items-center rounded-lg bg-clay text-white hover:bg-clay-dark disabled:opacity-50"
-            >
-              <ArrowUp size={16} strokeWidth={2.5} />
-            </button>
-          </div>
-        )}
-      </div>
+          {listening ? (
+            <div className="flex items-center gap-3">
+              <span className="relative grid size-3.5 place-items-center">
+                <span className="absolute inset-0 animate-ping rounded-full bg-clay/40" />
+                <span className="size-2.5 rounded-full bg-clay ring-2 ring-clay/30" />
+              </span>
+              <span className="text-sm font-medium">Listening</span>
+              <span className="text-sm text-muted tabular-nums">{formatTime(seconds)}</span>
+              <Waveform stream={speech.stream} mock={mock} className="ml-2 h-6" />
+              <button aria-label="Cancel voice input" onClick={cancel} className={`ml-auto ${iconBtn} size-9`}>
+                <X size={16} />
+              </button>
+              <button
+                onClick={send}
+                className="flex items-center gap-2 rounded-lg bg-clay px-4 py-2 text-sm font-medium text-bg hover:bg-clay-dark"
+              >
+                <span className="size-2.5 rounded-[2px] bg-bg" /> Send
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button className={iconBtn}><Plus size={16} /></button>
+              <button className={iconBtn}><SlidersHorizontal size={15} /></button>
+              <button
+                aria-label="Voice input"
+                title={speech.supported ? 'Voice input' : 'Voice input needs Chrome, Edge or Safari'}
+                onClick={speech.start}
+                disabled={!speech.supported}
+                className="ml-auto grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink disabled:opacity-40"
+              >
+                <Mic size={17} />
+              </button>
+              <button
+                aria-label="Mock voice input (presentation)"
+                title="Mock voice (presentation)"
+                onClick={startMock}
+                className="grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink"
+              >
+                <Presentation size={17} />
+              </button>
+              <button
+                onClick={send}
+                disabled={!text.trim()}
+                className="grid size-8 place-items-center rounded-lg bg-clay text-white hover:bg-clay-dark disabled:opacity-50"
+              >
+                <ArrowUp size={16} strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {speech.error && !listening && <p className="mt-3 text-center text-xs text-clay">{speech.error}</p>}
       {listening && (
