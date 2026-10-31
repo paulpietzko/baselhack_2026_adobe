@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import type { Place } from '../data/basel'
 
-const CLAY = '#d97757' // --color-clay; Mapbox markers need a literal color
-const CARD_WIDTH = 200
-const CARD_HEIGHT = 260 // approximate, used to keep cards on screen
+const CARD_WIDTH = 220
+const CARD_HEIGHT = 190 // approximate, used to keep cards on screen
 // Keep cards clear of the edges and the location pill on top
 const SAFE = { top: 52, bottom: 16, side: 16 }
 // Full-width mode sits behind the top bar and messages, and fades out at the bottom
@@ -14,7 +13,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min)
 
 type Positioned = { place: Place; marker: { x: number; y: number }; card: { x: number; y: number } }
 
-/** Numbered markers with floating cards, tied to map coordinates (approach from bako's BakeryCards). */
+/** Pins with floating glass cards in the spirit of visionOS, tied to map coordinates (approach from bako's BakeryCards). */
 export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places: Place[] }) {
   const [positions, setPositions] = useState<Positioned[]>([])
 
@@ -42,8 +41,13 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
     update()
     map.on('move', update)
     map.on('resize', update)
-    // Plain Mapbox pins, like bako (the tip sits on the place)
-    const markers = places.map((p) => new mapboxgl.Marker({ color: CLAY }).setLngLat(p.lngLat).addTo(map))
+    // Small glowing dots in each place's colour, so pin and tile read as a pair
+    const markers = places.map((p) => {
+      const dot = document.createElement('span')
+      dot.className = 'block size-3.5 rounded-full ring-[3px] ring-white shadow-[0_0_0_6px_rgb(255_255_255/0.35),0_4px_10px_rgb(0_0_0/0.3)]'
+      dot.style.background = p.iconColor
+      return new mapboxgl.Marker({ element: dot }).setLngLat(p.lngLat).addTo(map)
+    })
     return () => {
       map.off('move', update)
       map.off('resize', update)
@@ -52,22 +56,18 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
   }, [map, places])
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden font-system">
       <svg className="absolute inset-0 size-full animate-fade-in">
         {positions.map(({ place, marker, card }) => (
-          <g key={place.id}>
-            <line
-              x1={marker.x}
-              y1={marker.y}
-              x2={card.x}
-              y2={card.y}
-              className="stroke-clay"
-              strokeWidth={1.5}
-              strokeDasharray="5 5"
-              opacity={0.7}
-            />
-            <circle cx={marker.x} cy={marker.y} r={4} className="fill-clay" />
-          </g>
+          <line
+            key={place.id}
+            x1={marker.x}
+            y1={marker.y}
+            x2={card.x}
+            y2={card.y}
+            className="stroke-ink/25"
+            strokeWidth={1}
+          />
         ))}
       </svg>
 
@@ -78,39 +78,31 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
           style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
         >
           <div
-            className="animate-card-in overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
+            className="spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03]"
             style={{ animationDelay: '200ms' }}
           >
-            {/* Header: photo, or tinted placeholder with an icon */}
-            <div className="relative h-32" style={{ background: place.tint }}>
+            {/* Inset header: photo, or the place's tint with its icon */}
+            <div className="relative grid h-20 place-items-center overflow-hidden rounded-[20px]" style={{ background: place.tint }}>
               {place.image ? (
-                <img src={place.image} alt={place.name} className="size-full object-cover" />
+                <img src={place.image} alt={place.name} className="absolute inset-0 size-full object-cover" />
               ) : (
-                <>
-                  <place.icon
-                    size={32}
-                    strokeWidth={1.5}
-                    className="absolute top-1/2 left-1/2 -translate-1/2"
-                    style={{ color: place.iconColor }}
-                  />
-                  <span className="absolute bottom-1.5 left-2 rounded bg-black/45 px-1 text-[9px] tracking-wide text-ink/80">
-                    [PHOTO]
-                  </span>
-                </>
+                <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
               )}
-              <span className="absolute top-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-[#f0b48f]">
-                {place.time}
+              <span className="absolute top-2 right-2 rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
+                {place.time.replace(/^Tonight · /, '')}
               </span>
             </div>
-
-            <div className="p-3 pb-4">
-              {/* Name always on one line (truncates as a last resort) */}
-              <h3 className="truncate font-serif text-[15px] leading-tight" title={place.name}>
+            <div className="px-1.5 pt-2.5 pb-1">
+              <h3 className="truncate text-[13.5px] leading-tight font-semibold" title={place.name}>
                 {place.name}
               </h3>
-              {/* Fixed two-line block so every card has the same height */}
-              <p className="mt-1.5 line-clamp-2 h-[2lh] text-xs leading-snug text-muted">{place.description}</p>
-              <button className="mt-3 text-xs font-medium text-clay hover:text-clay-dark">Details →</button>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted">{place.description}</p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
+                  {place.tag}
+                </span>
+                <button className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark">Details ›</button>
+              </div>
             </div>
           </div>
         </article>
