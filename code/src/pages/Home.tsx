@@ -40,6 +40,8 @@ export default function Home() {
   // The agent's answer (real search, see server/agent.ts); null while it's searching
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [failed, setFailed] = useState(false)
+  // What the agent is looking up right now (live from the server), shown on the map while it searches
+  const [step, setStep] = useState<string | null>(null)
   const places = useMemo(
     () => answer && [...answer.places, ...(unlocked ? BASEL_PLACES.filter((p) => p.hidden) : [])],
     [answer, unlocked],
@@ -61,8 +63,9 @@ export default function Home() {
     if (!query) return
     setAnswer(null)
     setFailed(false)
+    setStep(null)
     const abort = new AbortController()
-    searchPlaces(query, abort.signal)
+    searchPlaces(query, setStep, abort.signal)
       .then(setAnswer)
       .catch((e) => {
         if (abort.signal.aborted) return
@@ -103,7 +106,7 @@ export default function Home() {
             {answer?.intro && <p className="mt-1 ml-7 text-sm text-muted">{answer.intro}</p>}
             {failed && <p className="mt-1 ml-7 text-xs text-clay">Live search unavailable, showing demo picks.</p>}
           </div>
-          <GlobeView key={query} places={places} focused={focused} />
+          <GlobeView key={query} places={places} focused={focused} searching={answer ? null : (step ?? '')} />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
           {unlocked && (
@@ -122,12 +125,15 @@ export default function Home() {
               ))}
             </div>
           )}
-          <ChatInput
-            onSend={ask}
-            placeholder="Reply to Claude…"
-            voiceMode={voice}
-            onEndVoice={() => setVoice(false)}
-          />
+          {/* No "Ask a follow-up…" bar until there is an answer to follow up on */}
+          {(answer || !voice) && (
+            <ChatInput
+              onSend={ask}
+              placeholder="Reply to Claude…"
+              voiceMode={voice}
+              onEndVoice={() => setVoice(false)}
+            />
+          )}
         </div>
       </main>
     )

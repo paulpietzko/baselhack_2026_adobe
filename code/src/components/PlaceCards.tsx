@@ -103,10 +103,16 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
           >
             {/* Inset header: photo, or the place's tint with its icon */}
             <div className="relative grid h-20 place-items-center overflow-hidden rounded-[20px]" style={{ background: place.tint }}>
-              {place.image ? (
-                <img src={place.image} alt={place.name} className="absolute inset-0 size-full object-cover" />
-              ) : (
-                <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
+              {/* Icon underneath: shows if there's no photo or the photo fails to load (hotlink blocked etc.) */}
+              <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
+              {place.image && (
+                <img
+                  src={place.image}
+                  alt={place.name}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                  className="absolute inset-0 size-full object-cover"
+                />
               )}
               {place.time && (
                 <span className="absolute top-2 right-2 max-w-[70%] truncate rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
@@ -128,7 +134,16 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
                 <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
                   {place.tag}
                 </span>
-                <button className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark">Details ›</button>
+                {place.url && (
+                  <a
+                    href={place.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark"
+                  >
+                    Details ›
+                  </a>
+                )}
               </div>
             </div>
           </div>

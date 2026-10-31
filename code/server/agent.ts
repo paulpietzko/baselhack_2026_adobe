@@ -34,6 +34,10 @@ export type SearchPlace = {
   time: string | null
   /** Published by the owner through Acme */
   verified: boolean
+  /** Real photo: from OSM/Wikimedia or the place's own website */
+  image: string | null
+  /** Where "Details" goes: the place's website, else its OpenStreetMap page */
+  url: string | null
 }
 export type SearchResult = { title: string; intro: string; places: SearchPlace[] }
 
@@ -44,7 +48,17 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org/search'
 // OSM services want an identifiable client
 const USER_AGENT = 'baselhack-2026-post-website-demo/1.0'
 
-type Candidate = { id: string; name: string; lat: number; lon: number; verified: boolean; info: Record<string, string> }
+type Candidate = {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  verified: boolean
+  /** Shown to the model */
+  info: Record<string, string>
+  /** Raw OSM tags we use for photos and links */
+  tags?: Record<string, string>
+}
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
@@ -73,7 +87,7 @@ async function searchPlaces(phrases: string[]): Promise<Candidate[]> {
       const extra = r.extratags ?? {}
       const info: Record<string, string> = { kind: `${r.category}/${r.type}` }
       for (const k of ['opening_hours', 'cuisine', 'website']) if (extra[k]) info[k] = extra[k]
-      found.push({ id: `${r.osm_type}/${r.osm_id}`, name: r.name, lat: +r.lat, lon: +r.lon, verified: false, info })
+      found.push({ id: `${r.osm_type}/${r.osm_id}`, name: r.name, lat: +r.lat, lon: +r.lon, verified: false, info, tags: extra })
     }
   }
   return found
@@ -172,7 +186,8 @@ const ANSWER_SCHEMA = {
   },
 }
 
-export async function search(query: string): Promise<SearchResult> {
+/** `onStep` hears what the agent is looking up right now, e.g. "night clubs, bars" */
+export async function search(query: string, onStep?: (label: string) => void): Promise<SearchResult> {
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set')
   const candidates = new Map<string, Candidate>()
   const now = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Zurich', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
@@ -196,10 +211,9 @@ Answer in the language of the user's message.`,
     for (const call of reply.tool_calls) {
       let found: Candidate[] = []
       try {
-        found =
-          call.function.name === 'search_places'
-            ? await searchPlaces(JSON.parse(call.function.arguments).phrases ?? [])
-            : acmeListings()
+        const phrases: string[] = call.function.name === 'search_places' ? (JSON.parse(call.function.arguments).phrases ?? []) : []
+        onStep?.(phrases.length ? phrases.join(', ') : 'verified Acme listings')
+        found = phrases.length ? await searchPlaces(phrases) : acmeListings()
       } catch (e) {
         messages.push({ role: 'tool', tool_call_id: call.id, content: `Error: ${(e as Error).message}` })
         continue
@@ -219,10 +233,74 @@ Answer in the language of the user's message.`,
     places: { id: string; tag: string; description: string; time: string | null; icon: Icon }[]
   }
 
-  // Keep only real candidates; their name and coordinates come from the data source
-  const places = answer.places.slice(0, 6).flatMap((p) => {
+  // Keep only real candidates; their name and coordinates come from the data source. Photos and links in parallel.
+  const picks = answer.places.slice(0, 6).flatMap((p) => {
     const c = candidates.get(p.id)
-    return c ? [{ ...p, name: c.name, lngLat: [c.lon, c.lat] as [number, number], verified: c.verified }] : []
+    return c ? [{ p, c }] : []
   })
+  const places = await Promise.all(
+    picks.map(async ({ p, c }) => ({
+      ...p,
+      name: c.name,
+      lngLat: [c.lon, c.lat] as [number, number],
+      verified: c.verified,
+      ...(await photoAndLink(c)),
+    })),
+  )
   return { title: answer.title, intro: answer.intro, places }
+}
+
+// ─── Photos & links ──────────────────────────────────────────────────────────
+
+const commonsFile = (file: string) =>
+  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/^File:/, ''))}?width=480`
+
+function websiteOf(c: Candidate): string | null {
+  const site = c.tags?.website ?? c.tags?.['contact:website'] ?? c.tags?.url
+  if (!site) return null
+  return /^https?:\/\//.test(site) ? site : `https://${site}`
+}
+
+async function fetchWithin<T>(url: string, ms: number, read: (r: Response) => Promise<T>): Promise<T | null> {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(ms), redirect: 'follow' })
+    return res.ok ? await read(res) : null
+  } catch {
+    return null
+  }
+}
+
+type Claims = Record<string, { mainsnak: { datavalue?: { value: unknown } } }[]>
+
+/** Image (P18) and official website (P856) of a Wikidata item, e.g. a landmark or a shop's brand */
+async function wikidata(id: string | undefined) {
+  if (!/^Q\d+$/.test(id ?? '')) return null
+  return fetchWithin(`https://www.wikidata.org/wiki/Special:EntityData/${id}.json`, 2500, async (r) => {
+    const claims = ((await r.json()) as { entities: Record<string, { claims?: Claims }> }).entities[id!]?.claims ?? {}
+    const first = (p: string) => claims[p]?.[0]?.mainsnak.datavalue?.value as string | undefined
+    return { image: first('P18'), website: first('P856') }
+  })
+}
+
+/** Link and first real photo we can find: OSM image tag → Wikimedia Commons → Wikidata (place, then brand) → website preview */
+async function photoAndLink(c: Candidate): Promise<{ image: string | null; url: string | null }> {
+  const t = c.tags ?? {}
+  const item = (await wikidata(t.wikidata)) ?? (await wikidata(t['brand:wikidata']))
+  const website = websiteOf(c) ?? item?.website ?? null
+  const url = website ?? (c.id.startsWith('acme/') ? null : `https://www.openstreetmap.org/${c.id}`)
+  if (/^https?:\/\//.test(t.image ?? '')) return { image: t.image, url }
+  if (t.wikimedia_commons?.startsWith('File:')) return { image: commonsFile(t.wikimedia_commons), url }
+  if (item?.image) return { image: commonsFile(item.image), url }
+  return { image: website ? await previewImage(website) : null, url }
+}
+
+/** The share image a site declares for itself (og:image / twitter:image) */
+function previewImage(website: string) {
+  return fetchWithin(website, 3500, async (r) => {
+    const html = (await r.text()).slice(0, 300_000)
+    const meta =
+      html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*content=["']([^"']+)["']/i)?.[1] ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i)?.[1]
+    return meta ? new URL(meta.replace(/&amp;/g, '&'), r.url).href : null
+  })
 }

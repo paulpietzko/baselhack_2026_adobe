@@ -90,10 +90,12 @@ function highlightBuilding(m: mapboxgl.Map) {
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, focused = false }: {
+export default function GlobeView({ places, focused = false, searching = null }: {
   places: Place[] | null
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
+  /** While the agent searches: what it's looking up right now ('' before its first step); null when done */
+  searching?: string | null
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -144,6 +146,16 @@ export default function GlobeView({ places, focused = false }: {
       {map && places && !focused && <PlaceCards map={map} places={places} />}
 
       {arrivedAtGem && <ClubDetails />}
+
+      {searching !== null && (
+        <span className="spatial-glass absolute top-3 right-3 flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sidebar-collapsed:top-16 sidebar-collapsed:right-4">
+          <span className="relative flex size-2 shrink-0">
+            <span className="absolute inset-0 animate-ping rounded-full bg-clay/60" />
+            <span className="size-2 rounded-full bg-clay" />
+          </span>
+          <span className="truncate">{searching ? `Searching for ${searching}` : 'Searching…'}</span>
+        </span>
+      )}
 
       {map && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">

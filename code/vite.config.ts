@@ -464,8 +464,10 @@ function searchApi(): Plugin {
         const { POST } = await server.ssrLoadModule('/api/search.ts')
         const response: Response = await POST(new Request('http://localhost/api/search', { method: 'POST', body }))
         res.statusCode = response.status
-        res.setHeader('Content-Type', 'application/json')
-        res.end(await response.text())
+        res.setHeader('Content-Type', response.headers.get('Content-Type') ?? 'application/json')
+        // Pass the event stream through as it arrives
+        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) res.write(chunk)
+        res.end()
       })
     },
   }

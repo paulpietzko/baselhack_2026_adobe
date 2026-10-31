@@ -16,6 +16,8 @@ export type Place = {
   cardAngle: number
   cardDistance: number
   image?: string
+  /** Where "Details" goes (the place's own website, or its map entry) */
+  url?: string
   /** Hidden gem: only shown once unlocked (demo: press "a") */
   hidden?: boolean
   /** Published by the owner through Acme */

@@ -34,11 +34,33 @@ const LOOKS: Record<Icon, [LucideIcon, string, string]> = {
 
 export type Answer = { title: string; intro: string; places: Place[] }
 
-/** Ask the search agent (server route, see server/agent.ts) and turn its picks into map cards */
-export async function searchPlaces(query: string, signal?: AbortSignal): Promise<Answer> {
+/**
+ * Ask the search agent (server route, see server/agent.ts) and turn its picks into map cards.
+ * `onStep` gets each live search step, e.g. "night clubs, bars".
+ */
+export async function searchPlaces(query: string, onStep: (label: string) => void, signal?: AbortSignal): Promise<Answer> {
   const res = await fetch('/api/search', { method: 'POST', body: JSON.stringify({ query }), signal })
-  const data = (await res.json()) as SearchResult & { error?: string }
-  if (!res.ok || data.error) throw new Error(data.error ?? `Search failed (${res.status})`)
+  if (!res.body) throw new Error(`Search failed (${res.status})`)
+
+  // Newline-delimited JSON events: {step} while searching, then {result} or {error}
+  let data: SearchResult | undefined
+  let buffer = ''
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+  for (;;) {
+    const { value, done } = await reader.read()
+    buffer += value ?? ''
+    const lines = buffer.split('\n')
+    // Keep a partial last line for the next chunk; at the end, it's the last event (or a plain JSON error)
+    buffer = done ? '' : lines.pop()!
+    for (const line of lines.filter(Boolean)) {
+      const event = JSON.parse(line) as { step?: string; result?: SearchResult; error?: string }
+      if (event.error) throw new Error(event.error)
+      if (event.step) onStep(event.step)
+      if (event.result) data = event.result
+    }
+    if (done) break
+  }
+  if (!data) throw new Error(`Search failed (${res.status})`)
 
   // Cards point away from the middle of the group, so they fan out around their pins
   const cx = data.places.reduce((s, p) => s + p.lngLat[0], 0) / (data.places.length || 1)
@@ -62,6 +84,8 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
         tint,
         iconColor,
         verified: p.verified,
+        image: p.image ?? undefined,
+        url: p.url ?? undefined,
         cardAngle: dx || dy ? (Math.atan2(dy, dx) * 180) / Math.PI : -90,
         cardDistance: 150,
       }
