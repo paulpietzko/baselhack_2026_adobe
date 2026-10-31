@@ -7,8 +7,8 @@ import Waveform from './Waveform'
 import { BASEL_FIT_PADDING, BASEL_PLACES } from '../data/basel'
 
 // How long the globe spins before we fly to the destination
-const GLOBE_INTRO_MS = 1500
-const FLY_DURATION_MS = 4500
+const GLOBE_INTRO_MS = 1000
+const FLY_DURATION_MS = 2500
 
 const iconBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
 

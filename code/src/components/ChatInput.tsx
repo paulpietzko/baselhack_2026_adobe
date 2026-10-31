@@ -8,13 +8,13 @@ const iconBtn = 'grid size-8 place-items-center rounded-lg border border-border 
 // (including a misheard word), then the final transcript. [ms after start, text]
 const MOCK_TRANSCRIPT = 'What can I do in Basel?'
 const MOCK_INTERIM: [number, string][] = [
-  [1100, 'What can'],
-  [1450, 'What can I do'],
-  [1900, 'What can I do in bass'],
-  [2300, 'What can I do in Basel'],
-  [2600, MOCK_TRANSCRIPT],
+  [800, 'What can'],
+  [1100, 'What can I do'],
+  [1450, 'What can I do in bass'],
+  [1800, 'What can I do in Basel'],
+  [2100, MOCK_TRANSCRIPT],
 ]
-const AUTO_SEND_MS = 3000
+const AUTO_SEND_MS = 2500
 
 const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
@@ -48,7 +48,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
     if (!listening) return
     const clock = setInterval(() => setSeconds((s) => s + 1), 1000)
     const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setText(t), ms))
-    // Mock "sends automatically when you pause": the transcript finishes at ~2.7s
+    // Mock "sends automatically when you pause": the transcript finishes at ~2.1s
     const autoSend = setTimeout(() => {
       onSend?.(MOCK_TRANSCRIPT)
       setText('')
