@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
-import { ImageIcon } from 'lucide-react'
 import type { Place } from '../data/basel'
 
 const CLAY = '#d97757' // --color-clay; Mapbox markers need a literal color
-const CARD_WIDTH = 220
-const CARD_HEIGHT = 240 // approximate, used to keep cards on screen
+const CARD_WIDTH = 240
+const CARD_HEIGHT = 210 // approximate, used to keep cards on screen
 // Keep cards clear of the screen edges, the top buttons and the bottom voice bar
 const SAFE = { top: 76, bottom: 100, side: 16 }
 
@@ -69,27 +68,51 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
         ))}
       </svg>
 
-      {positions.map(({ place, card }, i) => (
+      {positions.map(({ place, card }) => (
         <article
           key={place.id}
           className="pointer-events-auto absolute -translate-1/2"
           style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
         >
           <div
-            className="animate-card-in overflow-hidden rounded-xl border border-border bg-surface/95 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur"
-            style={{ animationDelay: `${200 + i * 120}ms` }}
+            className="animate-card-in overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
+            style={{ animationDelay: '200ms' }}
           >
-            {place.image ? (
-              <img src={place.image} alt={place.name} className="h-24 w-full object-cover" />
-            ) : (
-              <div className="grid h-24 place-items-center bg-gradient-to-br from-clay/35 via-bubble to-surface text-muted">
-                <ImageIcon size={22} strokeWidth={1.5} />
+            {/* Header: photo, or tinted placeholder with an icon */}
+            <div className="relative h-24" style={{ background: place.tint }}>
+              {place.image ? (
+                <img src={place.image} alt={place.name} className="size-full object-cover" />
+              ) : (
+                <>
+                  <place.icon
+                    size={32}
+                    strokeWidth={1.5}
+                    className="absolute top-1/2 left-1/2 -translate-1/2"
+                    style={{ color: place.iconColor }}
+                  />
+                  <span className="absolute bottom-1.5 left-2 rounded bg-black/45 px-1 text-[9px] tracking-wide text-ink/80">
+                    [PHOTO]
+                  </span>
+                </>
+              )}
+              <span className="absolute top-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-[#f0b48f]">
+                {place.time}
+              </span>
+            </div>
+
+            <div className="p-3">
+              {/* Name always on one line (truncates as a last resort) */}
+              <h3 className="truncate font-serif text-base leading-tight" title={place.name}>
+                {place.name}
+              </h3>
+              <span className="mt-1 inline-block rounded-full border border-[#8b83d8]/70 px-2 py-px text-[10px] font-medium text-[#b9b2f5]">
+                {place.tag}
+              </span>
+              {/* Details sits on the description's last line */}
+              <div className="mt-1 flex items-end gap-3">
+                <p className="flex-1 text-xs leading-snug text-muted">{place.description}</p>
+                <button className="shrink-0 text-xs font-medium text-clay hover:text-clay-dark">Details →</button>
               </div>
-            )}
-            <div className="space-y-1.5 p-3">
-              <h3 className="truncate text-sm font-semibold">{place.name}</h3>
-              <p className="text-xs leading-snug text-muted">{place.description}</p>
-              <p className="text-[11px] font-medium text-clay">{place.meta}</p>
             </div>
           </div>
         </article>

@@ -4,7 +4,8 @@ import { ChevronLeft, Keyboard, MapPin, Mic } from 'lucide-react'
 import Globe from './Globe'
 import PlaceCards from './PlaceCards'
 import Waveform from './Waveform'
-import { BASEL_FIT_PADDING, BASEL_PLACES } from '../data/basel'
+import ClaudeLogo from './ClaudeLogo'
+import { BASEL_FIT_PADDING, BASEL_PLACES, BASEL_TITLE } from '../data/basel'
 
 // How long the globe spins before we fly to the destination
 const GLOBE_INTRO_MS = 1000
@@ -64,6 +65,14 @@ export default function GlobeView({ onClose }: { onClose: () => void }) {
           </span>
         )}
       </div>
+
+      {arrived && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+          <h2 className="flex h-9 animate-fade-in items-center gap-2 rounded-full border border-border bg-surface/90 px-4 font-serif text-sm backdrop-blur">
+            <ClaudeLogo size={14} /> {BASEL_TITLE}
+          </h2>
+        </div>
+      )}
 
       <div className="absolute inset-x-0 bottom-5 flex justify-center px-4">
         <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
