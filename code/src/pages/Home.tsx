@@ -3,6 +3,7 @@ import { useLocation } from 'react-router'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine, Sparkles } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
+import { BRAND } from '../brand'
 import GlobeView from '../components/GlobeView'
 import { BASEL_PLACES, BASEL_TITLE } from '../data/basel'
 import type { FloorId } from '../data/floors'
@@ -13,7 +14,7 @@ const SUGGESTIONS = [
   { icon: BookOpen, label: 'Learn' },
   { icon: Code, label: 'Code' },
   { icon: Coffee, label: 'Life stuff' },
-  { icon: Lightbulb, label: "Claude's choice" },
+  { icon: Lightbulb, label: `${BRAND}'s choice` },
 ]
 
 // Intents "detected" from the conversation once the hidden gem is unlocked
@@ -145,11 +146,14 @@ export default function Home() {
             <ChatInput
               compact
               onSend={ask}
-              placeholder="Reply to Claude…"
+              placeholder={`Reply to ${BRAND}…`}
               voiceMode={voice}
               onEndVoice={() => setVoice(false)}
             />
           )}
+          <p className="mt-2 text-center text-[11px] text-muted">
+            {BRAND} can make mistakes. He apologises in advance, profusely.
+          </p>
         </div>
       </main>
     )
@@ -158,7 +162,7 @@ export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
       <h1 className="mb-8 flex items-center gap-3 font-serif text-4xl font-normal">
-        <ClaudeLogo size={36} />
+        <ClaudeLogo size={48} />
         {greeting()}, John Doe
       </h1>
       <div className="w-full max-w-2xl">

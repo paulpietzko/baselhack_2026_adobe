@@ -21,7 +21,7 @@ const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padSta
 
 export default function ChatInput({
   onSend,
-  placeholder = 'How can I help you today?',
+  placeholder = 'How can I help you today? I’d be absolutely delighted!',
   compact = false,
   voiceMode = false,
   onEndVoice,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronRight, Globe } from 'lucide-react'
 import { vendor } from '../../data/vendor'
 import { cta, glass } from './ui'
+import { BRAND } from '../../brand'
 
 export default function Connect({ onScan, onManual }: { onScan: (url: string) => void; onManual: () => void }) {
   const [url, setUrl] = useState('')
@@ -16,7 +17,7 @@ export default function Connect({ onScan, onManual }: { onScan: (url: string) =>
           <span className="text-neutral-400">Ready for AI.</span>
         </h1>
         <p className="mt-5 max-w-md text-lg leading-snug text-neutral-500">
-          Paste your website. We read every page and rebuild your floors in 3D, so guests find you right in Claude.
+          Paste your website. We read every page and rebuild your floors in 3D, so guests find you right in {BRAND}.
         </p>
         <form
           onSubmit={(e) => {

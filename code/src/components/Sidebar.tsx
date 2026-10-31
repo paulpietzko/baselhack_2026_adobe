@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ChevronsUpDown, FolderClosed, Layers, MessagesSquare, PanelLeft, Plus } from 'lucide-react'
 import { chats, user } from '../data'
+import { BRAND } from '../brand'
+import ClaudeLogo from './ClaudeLogo'
 
 const NAV = [
   { icon: MessagesSquare, label: 'Chats' },
@@ -36,8 +38,12 @@ export default function Sidebar() {
     >
       <div className="flex h-14 items-center px-3">
         {open && (
-          <Link to="/" className="pl-1 font-serif text-xl font-medium tracking-tight">
-            Claude
+          <Link to="/" className="flex items-center gap-1.5 pl-1 font-serif text-xl font-medium tracking-tight">
+            <ClaudeLogo size={22} />
+            <span>
+              {BRAND}
+              <sup className="ml-0.5 font-sans text-[9px] font-normal tracking-normal text-muted">not Claude™</sup>
+            </span>
           </Link>
         )}
         <button

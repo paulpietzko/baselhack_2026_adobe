@@ -6,6 +6,7 @@ import Scan from '../components/acme/Scan'
 import { BuildingPanel, ProfilePanel } from '../components/acme/Studio'
 import Scene, { type Light } from '../components/acme/Venue'
 import { AcmeLogo, cta, glass } from '../components/acme/ui'
+import { BRAND } from '../brand'
 import { vendor, type Field } from '../data/vendor'
 
 type Stage = 'connect' | 'scan' | 'studio'
@@ -55,7 +56,7 @@ function Published({ name, floors, onClose }: { name: string; floors: number; on
         </span>
         <h2 className="mt-4 text-2xl font-semibold tracking-tight">{name || 'Your club'} is live</h2>
         <p className="mt-2 text-sm text-neutral-500">
-          Your club and all {floors} floors are now on Claude. Guests can ask, walk through every room and get in
+          Your club and all {floors} floors are now on {BRAND}. Guests can ask, walk through every room and get in
           without ever opening your website.
         </p>
         <div className="mt-5 rounded-2xl bg-black/[0.04] p-3 text-left text-sm">
@@ -67,7 +68,7 @@ function Published({ name, floors, onClose }: { name: string; floors: number; on
             Keep editing
           </button>
           <Link to="/" className={`${cta} flex-1 py-2.5`}>
-            Open in Claude <ArrowUpRight size={15} />
+            Open in {BRAND} <ArrowUpRight size={15} />
           </Link>
         </div>
       </div>
@@ -179,7 +180,7 @@ export default function Vendor() {
             </>
           )}
           <Link to="/" className="flex items-center gap-0.5 text-sm text-neutral-500 hover:text-neutral-900">
-            Claude <ArrowUpRight size={14} />
+            {BRAND} <ArrowUpRight size={14} />
           </Link>
         </div>
       </header>
