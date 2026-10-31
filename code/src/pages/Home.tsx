@@ -3,8 +3,8 @@ import { useLocation } from 'react-router'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
-import GlobeView from '../components/GlobeView'
-import { BASEL_TITLE } from '../data/basel'
+import { CrewStack } from '../components/tonight/Crew'
+import Journey from '../components/tonight/Journey'
 
 const SUGGESTIONS = [
   { icon: PenLine, label: 'Write' },
@@ -25,27 +25,8 @@ export default function Home() {
   const { key } = useLocation()
   useEffect(() => setQuery(null), [key])
 
-  // Mock answer: whatever was asked, Claude replies with the Basel globe right in the chat
-  if (query) {
-    return (
-      <main className="flex min-h-0 flex-1 flex-col">
-        {/* With the sidebar collapsed the map sits behind this layer, so only the messages take clicks */}
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto sidebar-collapsed:pointer-events-none">
-          {/* Fullscreen map: the map is the answer, so the messages step aside */}
-          <div className="pointer-events-auto relative z-10 mx-auto w-full max-w-3xl px-6 pt-8 sidebar-collapsed:hidden">
-            <p className="ml-auto w-fit max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5">{query}</p>
-            <p className="mt-6 flex w-fit items-center gap-2 rounded-full font-serif text-lg sidebar-collapsed:bg-bg/80 sidebar-collapsed:px-3 sidebar-collapsed:py-1 sidebar-collapsed:backdrop-blur">
-              <ClaudeLogo size={20} /> {BASEL_TITLE}
-            </p>
-          </div>
-          <GlobeView key={query} />
-        </div>
-        <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
-          <ChatInput onSend={setQuery} placeholder="Reply to Claude…" />
-        </div>
-      </main>
-    )
-  }
+  // Whatever the crew asks first, Claude answers with the world instead of a page
+  if (query) return <Journey key={key} first={query} />
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
@@ -55,6 +36,9 @@ export default function Home() {
       </h1>
       <div className="w-full max-w-2xl">
         <ChatInput onSend={setQuery} />
+        <p className="mt-4 flex items-center justify-center gap-2 text-sm text-muted">
+          <CrewStack /> Mia, Leo and Noa are in this chat
+        </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {SUGGESTIONS.map(({ icon: Icon, label }) => (
             <button

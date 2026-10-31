@@ -16,12 +16,22 @@ const MOCK_INTERIM: [number, string][] = [
 ]
 const AUTO_SEND_MS = 2500
 
+/** Interim guesses for any line: it fills in word by word */
+const interimFor = (line: string): [number, string][] =>
+  line.split(' ').map((_, i, words) => [800 + i * 280, words.slice(0, i + 1).join(' ')])
+
 const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-export default function ChatInput({ onSend, placeholder = 'How can I help you today?' }: {
+export default function ChatInput({ onSend, placeholder = 'How can I help you today?', voiceLine, rows = 2 }: {
   onSend?: (text: string) => void
   placeholder?: string
+  /** What the mock microphone "hears" */
+  voiceLine?: string
+  rows?: number
 }) {
+  const transcript = voiceLine ?? MOCK_TRANSCRIPT
+  const interimLines = voiceLine ? interimFor(voiceLine) : MOCK_INTERIM
+  const autoSendMs = voiceLine ? interimLines.at(-1)![0] + 400 : AUTO_SEND_MS
   const [text, setText] = useState('')
   const [listening, setListening] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -47,13 +57,13 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
   useEffect(() => {
     if (!listening) return
     const clock = setInterval(() => setSeconds((s) => s + 1), 1000)
-    const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setText(t), ms))
+    const interim = interimLines.map(([ms, t]) => setTimeout(() => setText(t), ms))
     // Mock "sends automatically when you pause": the transcript finishes at ~2.1s
     const autoSend = setTimeout(() => {
-      onSend?.(MOCK_TRANSCRIPT)
+      onSend?.(transcript)
       setText('')
       setListening(false)
-    }, AUTO_SEND_MS)
+    }, autoSendMs)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel()
     window.addEventListener('keydown', onKey)
     return () => {
@@ -72,7 +82,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
         }`}
       >
         <textarea
-          rows={2}
+          rows={rows}
           value={text}
           readOnly={listening}
           placeholder={listening ? '' : placeholder}
@@ -84,7 +94,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
             }
           }}
           className={`w-full resize-none bg-transparent px-1 outline-none transition-colors duration-300 placeholder:text-muted ${
-            listening && text !== MOCK_TRANSCRIPT ? 'text-muted' : ''
+            listening && text !== transcript ? 'text-muted' : ''
           }`}
         />
 
