@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ArrowUp, Keyboard, Mic, Plus, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
+import { useSpeech } from '../hooks/useSpeech'
 
 const iconBtn = 'grid size-8 place-items-center rounded-lg border border-border text-muted hover:bg-bubble'
-
-// Mock speech recognition: silence first, then interim guesses in uneven chunks
-// (including a misheard word), then the final transcript. [ms after start, text]
-const MOCK_TRANSCRIPT = 'What can I do in Basel?'
-const MOCK_INTERIM: [number, string][] = [
-  [800, 'What can'],
-  [1100, 'What can I do'],
-  [1450, 'What can I do in bass'],
-  [1800, 'What can I do in Basel'],
-  [2100, MOCK_TRANSCRIPT],
-]
-const AUTO_SEND_MS = 2500
 
 const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
@@ -33,46 +22,29 @@ export default function ChatInput({
 }) {
   const [text, setText] = useState('')
   const [typing, setTyping] = useState(false)
-  const [listening, setListening] = useState(false)
   const [seconds, setSeconds] = useState(0)
+  // Real speech-to-text: sends by itself when you pause, and keeps the conversation in voice mode
+  const speech = useSpeech((heard) => onSend?.(heard, true))
+  const { listening } = speech
 
   const send = () => {
+    if (listening) return speech.stop() // sends what was heard
     if (!text.trim()) return
     onSend?.(text.trim())
     setText('')
-    setListening(false)
-  }
-
-  const startListening = () => {
-    setText('')
-    setSeconds(0)
-    setListening(true)
-  }
-
-  const cancel = () => {
-    setText('')
-    setListening(false)
   }
 
   useEffect(() => {
     if (!listening) return
+    setSeconds(0)
     const clock = setInterval(() => setSeconds((s) => s + 1), 1000)
-    const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setText(t), ms))
-    // Mock "sends automatically when you pause": the transcript finishes at ~2.1s
-    const autoSend = setTimeout(() => {
-      onSend?.(MOCK_TRANSCRIPT, true)
-      setText('')
-      setListening(false)
-    }, AUTO_SEND_MS)
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && speech.cancel()
     window.addEventListener('keydown', onKey)
     return () => {
       clearInterval(clock)
-      interim.forEach(clearTimeout)
-      clearTimeout(autoSend)
       window.removeEventListener('keydown', onKey)
     }
-  }, [listening])
+  }, [listening]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (voiceMode && !listening && !typing) {
     // Original voice bar (from GlobeView before 16ecb5a): live waveform, slides in with animate-bar-in
@@ -80,7 +52,7 @@ export default function ChatInput({
     return (
       <div className="flex justify-center">
         <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
-          <Waveform bars={10} className="h-5 shrink-0" />
+          <Waveform stream={speech.stream} bars={10} className="h-5 shrink-0" />
           <input
             value={text}
             placeholder="Ask a follow-up..."
@@ -91,7 +63,7 @@ export default function ChatInput({
           <button aria-label="Type instead" onClick={() => setTyping(true)} className={barBtn}>
             <Keyboard size={16} />
           </button>
-          <button aria-label="Voice input" onClick={startListening} className={barBtn}>
+          <button aria-label="Voice input" onClick={speech.start} disabled={!speech.supported} className={barBtn}>
             <Mic size={16} />
           </button>
           <button
@@ -117,7 +89,7 @@ export default function ChatInput({
       >
         <textarea
           rows={2}
-          value={text}
+          value={listening ? speech.text : text}
           readOnly={listening}
           placeholder={listening ? '' : placeholder}
           onChange={(e) => setText(e.target.value)}
@@ -128,7 +100,7 @@ export default function ChatInput({
             }
           }}
           className={`w-full resize-none bg-transparent px-1 outline-none transition-colors duration-300 placeholder:text-muted ${
-            listening && text !== MOCK_TRANSCRIPT ? 'text-muted' : ''
+            listening && !speech.final ? 'text-muted' : ''
           }`}
         />
 
@@ -140,8 +112,8 @@ export default function ChatInput({
             </span>
             <span className="text-sm font-medium">Listening</span>
             <span className="text-sm text-muted tabular-nums">{formatTime(seconds)}</span>
-            <Waveform className="ml-2 h-6" />
-            <button aria-label="Cancel voice input" onClick={cancel} className={`ml-auto ${iconBtn} size-9`}>
+            <Waveform stream={speech.stream} className="ml-2 h-6" />
+            <button aria-label="Cancel voice input" onClick={speech.cancel} className={`ml-auto ${iconBtn} size-9`}>
               <X size={16} />
             </button>
             <button
@@ -157,8 +129,10 @@ export default function ChatInput({
             <button className={iconBtn}><SlidersHorizontal size={15} /></button>
             <button
               aria-label="Voice input"
-              onClick={startListening}
-              className="ml-auto grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink"
+              title={speech.supported ? 'Voice input' : 'Voice input needs Chrome, Edge or Safari'}
+              onClick={speech.start}
+              disabled={!speech.supported}
+              className="ml-auto grid size-8 place-items-center rounded-lg text-muted hover:bg-bubble hover:text-ink disabled:opacity-40"
             >
               <Mic size={17} />
             </button>
@@ -173,6 +147,7 @@ export default function ChatInput({
         )}
       </div>
 
+      {speech.error && !listening && <p className="mt-3 text-center text-xs text-clay">{speech.error}</p>}
       {listening && (
         <p className="mt-3 flex items-center justify-center gap-3 text-xs text-muted">
           Speak naturally — sends automatically when you pause

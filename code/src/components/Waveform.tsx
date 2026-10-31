@@ -1,24 +1,41 @@
 import { useEffect, useState } from 'react'
 
-const randomBars = (n: number) => Array.from({ length: n }, () => 0.15 + Math.random() * 0.85)
-
-/** Mock audio waveform: clay bars that jump to random heights. */
-export default function Waveform({ bars = 32, className = 'h-6' }: { bars?: number; className?: string }) {
-  const [heights, setHeights] = useState(() => randomBars(bars))
+/** Live waveform for a microphone stream: clay bars driven by the real input level, mirrored around the middle. */
+export default function Waveform({ stream, bars = 32, className = 'h-6' }: {
+  stream: MediaStream | null
+  bars?: number
+  className?: string
+}) {
+  const [levels, setLevels] = useState(() => Array<number>(bars).fill(0.12))
 
   useEffect(() => {
-    const id = setInterval(() => setHeights(randomBars(bars)), 120)
-    return () => clearInterval(id)
-  }, [bars])
+    if (!stream) return
+    let raf = 0
+    const ctx = new AudioContext()
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.7
+    ctx.createMediaStreamSource(stream).connect(analyser)
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    // Voice sits in the lower part of the spectrum; low frequencies in the middle, highs to the sides
+    const half = bars / 2
+    const step = Math.max(1, Math.floor((data.length * 0.5) / half))
+    const tick = () => {
+      analyser.getByteFrequencyData(data)
+      setLevels(Array.from({ length: bars }, (_, i) => 0.12 + (data[Math.floor(Math.abs(i - half + 0.5)) * step] / 255) * 0.88))
+      raf = requestAnimationFrame(tick)
+    }
+    tick()
+    return () => {
+      cancelAnimationFrame(raf)
+      ctx.close()
+    }
+  }, [stream, bars])
 
   return (
     <div className={`flex items-center gap-[3px] ${className}`} aria-hidden>
-      {heights.map((h, i) => (
-        <span
-          key={i}
-          className="w-[3px] rounded-full bg-clay transition-[height] duration-100"
-          style={{ height: `${h * 100}%` }}
-        />
+      {levels.map((h, i) => (
+        <span key={i} className="w-[3px] rounded-full bg-clay" style={{ height: `${h * 100}%` }} />
       ))}
     </div>
   )
