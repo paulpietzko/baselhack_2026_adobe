@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUp, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowUp, Keyboard, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
 import { useSpeech } from '../hooks/useSpeech'
 
@@ -23,14 +23,21 @@ export default function ChatInput({
   onSend,
   placeholder = 'How can I help you today?',
   compact = false,
+  voiceMode = false,
+  onEndVoice,
 }: {
-  onSend?: (text: string) => void
+  /** viaMock: sent by the presentation mock, so the conversation continues in the voice bar */
+  onSend?: (text: string, viaMock?: boolean) => void
   placeholder?: string
   /** Start as a slim one-line pill that expands into the full box when clicked */
   compact?: boolean
+  /** Presentation: show the voice bar ("Ask a follow-up…") instead of the pill */
+  voiceMode?: boolean
+  onEndVoice?: () => void
 }) {
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [seconds, setSeconds] = useState(0)
   // Real speech-to-text: sends by itself when you pause
   const speech = useSpeech((heard) => onSend?.(heard))
@@ -52,7 +59,7 @@ export default function ChatInput({
     const interim = MOCK_INTERIM.map(([ms, t]) => setTimeout(() => setMockText(t), ms))
     const autoSend = setTimeout(() => {
       setMock(false)
-      onSend?.(MOCK_TRANSCRIPT)
+      onSend?.(MOCK_TRANSCRIPT, true)
     }, MOCK_AUTO_SEND_MS)
     return () => {
       interim.forEach(clearTimeout)
@@ -63,7 +70,7 @@ export default function ChatInput({
   const send = () => {
     if (mock) {
       setMock(false)
-      if (mockText) onSend?.(mockText)
+      if (mockText) onSend?.(mockText, true)
       return
     }
     if (listening) return speech.stop() // sends what was heard
@@ -83,6 +90,50 @@ export default function ChatInput({
       window.removeEventListener('keydown', onKey)
     }
   }, [listening, mock]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (voiceMode && !listening && !typing) {
+    // Presentation voice bar: live waveform, slides in with animate-bar-in
+    const barBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
+    return (
+      <div className="flex justify-center">
+        <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
+          <Waveform stream={speech.stream} mock bars={10} className="h-5 shrink-0" />
+          <input
+            value={text}
+            placeholder="Ask a follow-up..."
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+          />
+          <button
+            aria-label="Type instead"
+            onClick={() => {
+              setTyping(true)
+              setOpen(true)
+            }}
+            className={barBtn}
+          >
+            <Keyboard size={16} />
+          </button>
+          <button aria-label="Voice input" onClick={speech.start} disabled={!speech.supported} className={barBtn}>
+            <Mic size={16} />
+          </button>
+          <button aria-label="Mock voice input (presentation)" title="Mock voice (presentation)" onClick={startMock} className={barBtn}>
+            <Presentation size={16} />
+          </button>
+          <button
+            onClick={() => {
+              setText('')
+              onEndVoice?.()
+            }}
+            className="h-10 rounded-xl bg-clay px-4 text-sm font-medium text-bg hover:bg-clay-dark"
+          >
+            End
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const collapsed = compact && !open && !text && !listening
 
@@ -104,6 +155,17 @@ export default function ChatInput({
             className="grid size-8 place-items-center rounded-full text-muted hover:bg-bubble hover:text-ink disabled:opacity-40"
           >
             <Mic size={16} />
+          </button>
+          <button
+            aria-label="Mock voice input (presentation)"
+            title="Mock voice (presentation)"
+            onClick={(e) => {
+              e.stopPropagation()
+              startMock()
+            }}
+            className="grid size-8 place-items-center rounded-full text-muted hover:bg-bubble hover:text-ink"
+          >
+            <Presentation size={16} />
           </button>
           <span className="grid size-8 place-items-center rounded-full bg-clay text-white opacity-50">
             <ArrowUp size={15} strokeWidth={2.5} />

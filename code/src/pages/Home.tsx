@@ -25,6 +25,8 @@ const greeting = () => {
 
 export default function Home() {
   const [query, setQuery] = useState<string | null>(null)
+  // Asked with the presentation mock: keep the conversation in the voice bar ("Ask a follow-up…")
+  const [voice, setVoice] = useState(false)
   // Demo: pressing "a" unlocks the hidden gem (Club Rouge) on the map
   const [unlocked, setUnlocked] = useState(false)
   // Once the pills have popped in (~1s) and a 0.5s pause, fly into the club in 3D
@@ -44,14 +46,16 @@ export default function Home() {
     () => answer && [...answer.places, ...(unlocked ? BASEL_PLACES.filter((p) => p.hidden) : [])],
     [answer, unlocked],
   )
-  const ask = (text: string) => {
+  const ask = (text: string, viaMock = false) => {
     setQuery(text)
     setUnlocked(false)
+    if (viaMock) setVoice(true)
   }
   // "New chat" navigates to / again: start over
   const { key } = useLocation()
   useEffect(() => {
     setQuery(null)
+    setVoice(false)
     setUnlocked(false)
   }, [key])
 
@@ -121,7 +125,16 @@ export default function Home() {
               ))}
             </div>
           )}
-          <ChatInput compact onSend={ask} placeholder="Reply to Claude…" />
+          {/* No "Ask a follow-up…" bar until there is an answer to follow up on */}
+          {(answer || !voice) && (
+            <ChatInput
+              compact
+              onSend={ask}
+              placeholder="Reply to Claude…"
+              voiceMode={voice}
+              onEndVoice={() => setVoice(false)}
+            />
+          )}
         </div>
       </main>
     )
