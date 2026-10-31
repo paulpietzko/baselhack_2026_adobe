@@ -7,7 +7,11 @@ import PlaceCards from './PlaceCards'
 import ClubDetails from './ClubDetails'
 import ImmersiveFloor from './immersive/ImmersiveFloor'
 import ClubFloorLabels, { type ClubBuilding, type FloorLabel } from './ClubFloorLabels'
+import ShopDetails from './ShopDetails'
+import type { OutfitChoice } from './immersive/FloorTiles'
 import type { FloorId } from '../data/floors'
+import { COLORS } from '../data/costumes'
+import { SHOP } from '../data/shop'
 import { BASEL_CAMERA, BASEL_PLACES, HAFENLICHT_CLUB, type Place } from '../data/basel'
 
 // Web Mercator y (0 at the top, 1 at the bottom) for a latitude
@@ -144,6 +148,80 @@ function highlightBuilding(m: mapboxgl.Map, dark: boolean): ClubBuilding | undef
   }
 }
 
+// Flying to the mall, like bako flies to a bakery: straight in, tilted to 3D
+const SHOP_CAMERA = { center: SHOP.lngLat, zoom: 17.5, pitch: 60, bearing: -20, offset: [0, 60] as [number, number] }
+const SHOP_FLY_MS = 3000
+const SHOP_RISE_MS = 1400
+
+/**
+ * Light up the mall like bako lights up a bakery, but in the colour of the look: the building rises out of the ground,
+ * a glowing outline pulses around its footprint. Returns its footprint (for the beacon) and a cleanup.
+ */
+function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding | null; cleanup: () => void } {
+  const p = m.project(SHOP.lngLat)
+  let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
+  for (const r of [8, 24, 48]) {
+    building = m.queryRenderedFeatures([[p.x - r, p.y - r], [p.x + r, p.y + r]], { layers: ['3d-buildings'] })[0]
+    if (building) break
+  }
+  if (!building || building.id == null) return { building: null, cleanup: () => {} }
+  const before = m.getFilter('3d-buildings')
+  // Out of the grey layer, so the rising building isn't hidden inside its own grey copy
+  m.setFilter('3d-buildings', ['all', before ?? EXTRUDED, ['!=', ['id'], building.id]] as unknown as mapboxgl.FilterSpecification)
+  const filter = ['==', ['id'], building.id] as mapboxgl.FilterSpecification
+  const base = { source: 'composite', 'source-layer': 'building', filter }
+  m.addLayer({
+    ...base,
+    id: 'shop-glow',
+    type: 'line',
+    paint: { 'line-color': color, 'line-width': 10, 'line-blur': 8, 'line-opacity': 0.9 },
+  })
+  m.addLayer({
+    ...base,
+    id: 'shop-building',
+    type: 'fill-extrusion',
+    paint: {
+      'fill-extrusion-color': color,
+      'fill-extrusion-base': ['get', 'min_height'],
+      'fill-extrusion-height': ['get', 'min_height'],
+      'fill-extrusion-opacity': 1,
+      'fill-extrusion-vertical-gradient': true,
+    },
+  })
+  // Rise with an ease-out, then keep the outline breathing
+  const start = performance.now()
+  let risen = false
+  let frame = requestAnimationFrame(function tick(now) {
+    if (!m.getLayer('shop-building')) return
+    const t = Math.min(1, (now - start) / SHOP_RISE_MS)
+    const k = 1 - (1 - t) ** 3
+    if (!risen) {
+      risen = t === 1
+      m.setPaintProperty('shop-building', 'fill-extrusion-height', [
+        '+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], k],
+      ] as unknown as mapboxgl.ExpressionSpecification)
+    }
+    m.setPaintProperty('shop-glow', 'line-opacity', 0.45 + 0.45 * Math.sin((now - start) / 450) ** 2)
+    m.setPaintProperty('shop-glow', 'line-width', 8 + 10 * Math.sin((now - start) / 450) ** 2)
+    frame = requestAnimationFrame(tick)
+  })
+  const { geometry: g, properties } = building as unknown as { geometry: { type: string; coordinates: unknown }; properties: Record<string, unknown> | null }
+  const polygons = (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []) as number[][][][]
+  return {
+    building: {
+      id: building.id,
+      ring: polygons.map((poly) => poly[0]).flat() as [number, number][],
+      base: Number(properties?.min_height ?? 0),
+      height: Number(properties?.height ?? 0),
+    },
+    cleanup: () => {
+      cancelAnimationFrame(frame)
+      for (const id of ['shop-building', 'shop-glow']) if (m.getLayer(id)) m.removeLayer(id)
+      if (m.getLayer('3d-buildings')) m.setFilter('3d-buildings', before ?? (EXTRUDED as unknown as mapboxgl.FilterSpecification))
+    },
+  }
+}
+
 /** Hovering a club floor lights it up with a pointer cursor; clicking it calls onClick. Returns a cleanup. */
 function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick: (floor: ClubFloor) => void) {
   const feature = { source: 'composite', sourceLayer: 'building', id }
@@ -178,7 +256,7 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor }: {
+export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop }: {
   places: Place[] | null
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
@@ -190,6 +268,8 @@ export default function GlobeView({ places, focused = false, searching = null, o
   floor?: FloorId | null
   /** Switch floors (id) or leave (null) from inside the immersive view */
   onFloor?: (floor: FloorId | null) => void
+  /** Off to the mall with a look (or back from it), so the chat can show what we're shopping for */
+  onShop?: (choice: OutfitChoice | null) => void
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -235,14 +315,52 @@ export default function GlobeView({ places, focused = false, searching = null, o
     [],
   )
 
-  // Into a floor: dive at it. Out again: back across the street.
+  // "Where can we get it?": leave the floor and fly across town to the mall with the look the crew picked
+  const [shop, setShop] = useState<OutfitChoice | null>(null)
+  const [shopBuilding, setShopBuilding] = useState<ClubBuilding | null>(null)
+  const [atShop, setAtShop] = useState(false)
+  const goShopping = (choice: OutfitChoice) => {
+    setShop(choice)
+    onShop?.(choice)
+    onFloor?.(null)
+  }
+  const shopColor = shop && COLORS.find((c) => c.id === shop.color)!.hex
+  useEffect(() => {
+    if (!map || !shopColor) return
+    const dark = document.documentElement.dataset.theme !== 'light'
+    add3dBuildings(map, dark)
+    map.flyTo({ ...SHOP_CAMERA, duration: SHOP_FLY_MS, essential: true })
+    let cleanup: (() => void) | undefined
+    const onIdle = () => {
+      const found = highlightShop(map, shopColor)
+      setShopBuilding(found.building)
+      setAtShop(true)
+      cleanup = found.cleanup
+    }
+    const onArrive = () => map.once('idle', onIdle)
+    map.once('moveend', onArrive)
+    return () => {
+      map.off('moveend', onArrive)
+      map.off('idle', onIdle)
+      cleanup?.()
+      setShopBuilding(null)
+      setAtShop(false)
+    }
+  }, [map, shopColor])
+  const leaveShop = () => {
+    setShop(null)
+    onShop?.(null)
+    map?.flyTo({ ...GEM_CAMERA, duration: SHOP_FLY_MS, essential: true })
+  }
+
+  // Into a floor: dive at it. Out again: back across the street (unless we're off to the shops).
   const wasOnFloor = useRef(false)
   useEffect(() => {
     if (!map) return
     if (floor) map.flyTo({ ...FLOOR_CAMERA[floor], duration: FLOOR_DIVE_MS, essential: true })
-    else if (wasOnFloor.current) map.flyTo({ ...GEM_CAMERA, duration: FLOOR_DIVE_MS, essential: true })
+    else if (wasOnFloor.current && !shop) map.flyTo({ ...GEM_CAMERA, duration: FLOOR_DIVE_MS, essential: true })
     wasOnFloor.current = !!floor
-  }, [map, floor])
+  }, [map, floor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const flown = useRef(false)
 
@@ -276,13 +394,17 @@ export default function GlobeView({ places, focused = false, searching = null, o
         <Globe className="size-full" onLoad={(m, stopSpin) => setLoaded({ map: m, stopSpin })} />
       </div>
 
-      {floor && onFloor && createPortal(<ImmersiveFloor floor={floor} onFloor={onFloor} onClose={() => onFloor(null)} />, document.body)}
+      {floor && onFloor &&
+        createPortal(<ImmersiveFloor floor={floor} onFloor={onFloor} onClose={() => onFloor(null)} onWhereToGet={goShopping} />, document.body)}
 
       {map && places && !focused && <PlaceCards map={map} places={places} />}
 
-      {map && club && !floor && <ClubFloorLabels map={map} building={club} floors={floorLabels} />}
+      {map && club && !floor && !shop && <ClubFloorLabels map={map} building={club} floors={floorLabels} />}
 
-      {arrivedAtGem && <ClubDetails />}
+      {arrivedAtGem && !shop && <ClubDetails />}
+
+      {/* Cards wait for the camera to land, like the club's */}
+      {map && shop && atShop && !floor && <ShopDetails key={`${shop.outfit}-${shop.color}`} map={map} building={shopBuilding} choice={shop} onBack={leaveShop} />}
 
       {searching !== null && (
         <span className="spatial-glass absolute top-3 right-3 flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sidebar-collapsed:top-16 sidebar-collapsed:right-4">
@@ -296,7 +418,7 @@ export default function GlobeView({ places, focused = false, searching = null, o
 
       {map && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
-          <MapPin size={14} className="text-clay" /> {arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
+          <MapPin size={14} className="text-clay" /> {shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
         </span>
       )}
     </div>

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
-import { BookOpen, Code, Coffee, Lightbulb, PenLine, Sparkles } from 'lucide-react'
+import { BookOpen, Code, Coffee, Lightbulb, PenLine, ShoppingBag, Sparkles } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
 import { BRAND } from '../brand'
 import GlobeView from '../components/GlobeView'
 import { BASEL_PLACES, BASEL_TITLE } from '../data/basel'
 import type { FloorId } from '../data/floors'
+import { COLORS, outfitById } from '../data/costumes'
+import type { OutfitChoice } from '../components/immersive/FloorTiles'
 import { searchPlaces, type Answer } from '../data/search'
 
 const SUGGESTIONS = [
@@ -35,9 +37,12 @@ export default function Home() {
   const [focused, setFocused] = useState(false)
   // Clicked one of Hafenlicht's floors on the map: standing on it, in the immersive view
   const [floor, setFloor] = useState<FloorId | null>(null)
+  // At the mall with the crew's look: the pills show what we're shopping for
+  const [look, setLook] = useState<OutfitChoice | null>(null)
   useEffect(() => {
     setFocused(false)
     setFloor(null)
+    setLook(null)
     if (!unlocked) return
     const t = setTimeout(() => setFocused(true), 1050 + 500)
     return () => clearTimeout(t)
@@ -61,6 +66,7 @@ export default function Home() {
   useEffect(() => {
     setQuery(null)
     setFloor(null)
+    setLook(null)
     setVoice(false)
     setUnlocked(false)
   }, [key])
@@ -122,25 +128,45 @@ export default function Home() {
             onClubFloorsClick={(f) => setFloor(f === 'lower' ? 'main-hall' : 'rooftop')}
             floor={floor}
             onFloor={setFloor}
+            onShop={setLook}
           />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
-          {unlocked && (
-            <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="flex animate-[pill-in_650ms_cubic-bezier(0.34,1.56,0.64,1)_both,gem-glow_1.6s_ease-in-out_650ms_3] items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-semibold text-bg shadow-[0_0_16px_rgb(217_119_87/0.35)]">
-                <Sparkles size={13} /> Hidden gem unlocked
-              </span>
-              {INTENTS.map((intent, i) => (
-                <span
-                  key={intent}
-                  className="animate-pill-in rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur"
-                  style={{ animationDelay: `${250 + i * 150}ms` }}
-                >
-                  {intent}
-                </span>
-              ))}
-            </div>
-          )}
+          {unlocked && (() => {
+            // At the mall the pills follow the look; otherwise the club's intents
+            const outfit = look && outfitById(look.outfit)
+            const color = look && COLORS.find((c) => c.id === look.color)!
+            const pills: { label: string; dot?: string }[] =
+              outfit && color
+                ? [{ label: outfit.name }, { label: color.name, dot: color.hex }]
+                : INTENTS.map((label) => ({ label }))
+            return (
+              <div key={outfit ? `${outfit.id}-${color!.id}` : 'club'} className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                {outfit && color ? (
+                  <span
+                    className="flex animate-pill-in items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+                    style={{ background: color.hex, boxShadow: `0 0 16px ${color.hex}66` }}
+                  >
+                    <ShoppingBag size={13} /> Look found
+                  </span>
+                ) : (
+                  <span className="flex animate-[pill-in_650ms_cubic-bezier(0.34,1.56,0.64,1)_both,gem-glow_1.6s_ease-in-out_650ms_3] items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-semibold text-bg shadow-[0_0_16px_rgb(217_119_87/0.35)]">
+                    <Sparkles size={13} /> Hidden gem unlocked
+                  </span>
+                )}
+                {pills.map((p, i) => (
+                  <span
+                    key={p.label}
+                    className="flex animate-pill-in items-center gap-1.5 rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur"
+                    style={{ animationDelay: `${250 + i * 150}ms` }}
+                  >
+                    {p.dot && <span className="size-2 rounded-full" style={{ background: p.dot }} />}
+                    {p.label}
+                  </span>
+                ))}
+              </div>
+            )
+          })()}
           {/* No "Ask a follow-up…" bar until there is an answer to follow up on */}
           {(answer || !voice) && (
             <ChatInput

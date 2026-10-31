@@ -38,7 +38,13 @@ const NO_CHOICE: OutfitChoice = { outfit: null, color: 'crimson', budget: null, 
  * Standing on one of Hafenlicht's floors: the 3D floor over the (blurred) map, the floor's tiles on the right.
  * The map dive and its blur live in GlobeView; this is everything on top of it.
  */
-export default function ImmersiveFloor({ floor, onFloor, onClose }: { floor: FloorId; onFloor: (id: FloorId) => void; onClose: () => void }) {
+export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }: {
+  floor: FloorId
+  onFloor: (id: FloorId) => void
+  onClose: () => void
+  /** Off to the shop that has the picked look (GlobeView flies the map there) */
+  onWhereToGet?: (choice: OutfitChoice) => void
+}) {
   const name = FLOORS.find((f) => f.id === floor)!.name
   const other = FLOORS.find((f) => f.id !== floor)!
   const [sound, setSound] = useState(true)
@@ -105,15 +111,14 @@ export default function ImmersiveFloor({ floor, onFloor, onClose }: { floor: Flo
       setChoice((c) => ({ ...c, color: id }))
       setReply(`${COLORS.find((c) => c.id === id)!.name}, under the lights you'll actually be in.`)
     },
-    // What comes after picking a look is still to be designed
-    onWhereToGet: noop,
+    onWhereToGet: () => onWhereToGet?.(choice),
   }
 
   const chips: { label: string; run: () => void }[] =
     mode === 'outfit'
       ? choice.outfit
         ? [
-            { label: 'Where can we get it tonight?', run: noop },
+            { label: 'Where can we get it tonight?', run: () => onWhereToGet?.(choice) },
             choice.outfit === 'witch' ? { label: 'Let’s go vampire', run: () => pick('vampire') } : { label: 'Witch couture', run: () => pick('witch') },
           ]
         : [
