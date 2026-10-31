@@ -1,4 +1,4 @@
-import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import fs from 'node:fs'
@@ -9,6 +9,8 @@ import siteConfiguration from './.figma/make/site.json'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  // Server-only secrets (no VITE_ prefix) for the /api routes; never exposed to the client bundle
+  process.env.OPENAI_API_KEY ??= loadEnv(mode, process.cwd(), '').OPENAI_API_KEY
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
   const emitSourcemaps = mode === 'development'
 
@@ -26,6 +28,7 @@ react(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
       figmaLinkedPackageSourcemaps(),
+      searchApi(),
     ],
     resolve: {
       alias: {
@@ -446,6 +449,24 @@ function figmaLinkedPackageSourcemaps(): Plugin {
       })
       delete map.sourceRoot
       return { code: code.replace(sourceMappingUrl, ''), map }
+    },
+  }
+}
+
+/** Dev stand-in for the Vercel function in api/search.ts: same handler, served by the Vite dev server */
+function searchApi(): Plugin {
+  return {
+    name: 'search-api',
+    configureServer(server) {
+      server.middlewares.use('/api/search', async (req, res) => {
+        let body = ''
+        for await (const chunk of req) body += chunk
+        const { POST } = await server.ssrLoadModule('/api/search.ts')
+        const response: Response = await POST(new Request('http://localhost/api/search', { method: 'POST', body }))
+        res.statusCode = response.status
+        res.setHeader('Content-Type', 'application/json')
+        res.end(await response.text())
+      })
     },
   }
 }
