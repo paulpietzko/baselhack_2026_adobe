@@ -13,7 +13,7 @@ const FLY_DURATION_MS = 2500
 const VISIBLE_PLACES = BASEL_PLACES.filter((p) => !p.hidden)
 const GEM = BASEL_PLACES.find((p) => p.id === CLUB_ROUGE.id)!
 const GEM_COLOR = '#d97757' // clay
-const BUILDING_RISE_MS = 900
+const EXTRUDED = ['==', ['get', 'extrude'], 'true'] as const
 
 /** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
 function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
@@ -24,21 +24,22 @@ function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
       id: '3d-buildings',
       source: 'composite',
       'source-layer': 'building',
-      filter: ['==', 'extrude', 'true'],
+      filter: EXTRUDED as unknown as mapboxgl.FilterSpecification,
       type: 'fill-extrusion',
       minzoom: 15,
       paint: {
         'fill-extrusion-color': dark ? '#3a3a3c' : '#d6d3cc',
         'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']],
-        'fill-extrusion-opacity': 0.75,
+        // Fully opaque: a solid city like bako, no see-through walls
+        'fill-extrusion-opacity': 1,
       },
     },
     labelLayerId,
   )
 }
 
-/** Find the building under the gem and extrude it in clay, rising out of the ground */
+/** Find the building under the gem and extrude it in clay */
 function highlightBuilding(m: mapboxgl.Map) {
   const p = m.project(GEM.lngLat)
   // Widen the search until we hit a building (the pin may sit on a street)
@@ -48,6 +49,8 @@ function highlightBuilding(m: mapboxgl.Map) {
     if (building) break
   }
   if (!building || building.id == null || m.getLayer('gem-building')) return
+  // Drop the club from the grey layer, otherwise grey and clay walls overlap and z-fight (stripes)
+  m.setFilter('3d-buildings', ['all', EXTRUDED, ['!=', ['id'], building.id]] as unknown as mapboxgl.FilterSpecification)
   m.addLayer({
     id: 'gem-building',
     type: 'fill-extrusion',
@@ -56,21 +59,12 @@ function highlightBuilding(m: mapboxgl.Map) {
     filter: ['==', ['id'], building.id],
     paint: {
       'fill-extrusion-color': GEM_COLOR,
-      'fill-extrusion-height': 0,
+      // A little taller than real, so the club stands out
+      'fill-extrusion-height': ['*', ['get', 'height'], 1.15],
       'fill-extrusion-base': ['get', 'min_height'],
-      'fill-extrusion-opacity': 0.95,
+      'fill-extrusion-opacity': 1,
     },
   })
-  const start = performance.now()
-  const step = (now: number) => {
-    if (!m.getLayer('gem-building')) return
-    const t = Math.min((now - start) / BUILDING_RISE_MS, 1)
-    const eased = 1 - Math.pow(1 - t, 3)
-    // A little taller than real at the end, so the club stands out
-    m.setPaintProperty('gem-building', 'fill-extrusion-height', ['*', ['get', 'height'], eased * 1.15])
-    if (t < 1) requestAnimationFrame(step)
-  }
-  requestAnimationFrame(step)
 }
 
 /**
@@ -90,7 +84,7 @@ export default function GlobeView({ unlocked = false, focused = false }: {
   useEffect(() => {
     if (!map || !focused) return
     add3dBuildings(map, document.documentElement.dataset.theme !== 'light')
-    map.flyTo({ center: GEM.lngLat, zoom: 17.2, pitch: 60, bearing: -25, duration: 3000, essential: true })
+    map.flyTo({ center: GEM.lngLat, zoom: 18.2, pitch: 60, bearing: -25, offset: [0, -40], duration: 3000, essential: true })
     // Wait for the zoomed-in building tiles to render before looking up the club's building
     const onIdle = () => highlightBuilding(map)
     const onArrive = () => {

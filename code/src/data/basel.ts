@@ -73,7 +73,7 @@ export const BASEL_PLACES: Place[] = [
     time: 'Tonight · 22:30',
     tag: '18+ · Costume party',
     description: 'Rooftop bar and club on the 31st floor.',
-    lngLat: [7.59446528147669, 47.54905311106348],
+    lngLat: [7.595355222467873, 47.54869846467132],
     icon: Building2,
     tint: '#4a2226',
     iconColor: '#e8828a',
