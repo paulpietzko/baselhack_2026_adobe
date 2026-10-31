@@ -25,12 +25,14 @@ export default function Globe({ className = '', controls = false, onLoad }: {
   useEffect(() => {
     if (!container.current || !TOKEN) return
     mapboxgl.accessToken = TOKEN
-    // Follow Claude's light/dark theme so the map blends into the chat
-    const dark = document.documentElement.dataset.theme !== 'light'
+    // Follow Claude's light/dark theme so the map blends into the chat, also when it's toggled later
+    const isDark = () => document.documentElement.dataset.theme !== 'light'
+    const styleFor = (dark: boolean) => `mapbox://styles/mapbox/${dark ? 'dark' : 'light'}-v11`
+    let dark = isDark()
 
     const map = new mapboxgl.Map({
       container: container.current,
-      style: dark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
+      style: styleFor(dark),
       projection: 'globe',
       zoom: 2,
       center: [0, 20],
@@ -91,9 +93,17 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     // Mapbox only follows window resizes; the container also changes when the sidebar toggles
     const observer = new ResizeObserver(() => map.resize())
     observer.observe(container.current)
+    // Theme toggle: swap the style in place (markers are DOM and stay; fog is reapplied on style.load)
+    const themeObserver = new MutationObserver(() => {
+      if (isDark() === dark) return
+      dark = isDark()
+      map.setStyle(styleFor(dark))
+    })
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
     return () => {
       observer.disconnect()
+      themeObserver.disconnect()
       map.remove()
     }
   }, [controls])
