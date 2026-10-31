@@ -26,7 +26,7 @@ export default function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="flex h-screen w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-3">
+      <aside data-sidebar="collapsed" className="flex h-screen w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-3">
         {toggle}
         <Link
           to="/"
@@ -48,7 +48,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-72 shrink-0 flex-col border-r border-border bg-sidebar">
+    <aside data-sidebar="open" className="flex h-screen w-72 shrink-0 flex-col border-r border-border bg-sidebar">
       <div className="flex items-center justify-between px-4 py-3">
         <Link to="/" className="font-serif text-xl font-medium tracking-tight">
           Claude

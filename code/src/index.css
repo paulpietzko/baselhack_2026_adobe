@@ -1,6 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
 @import 'tailwindcss';
 
+/* Styles for when the Claude sidebar is collapsed to its icon rail, see components/Sidebar.tsx */
+@custom-variant sidebar-collapsed (:root:has([data-sidebar='collapsed']) &);
+
+/* Feathered edges like a Vision Pro persona: a blurred rounded rectangle as mask, a bit more fade at the bottom.
+   No viewBox, so the blur is in real pixels and stays even at any size. */
+@layer components {
+  /* visionOS-like glass: translucent surface, strong blur, light rim and soft lift */
+  .spatial-glass {
+    background: color-mix(in srgb, var(--surface) 62%, transparent);
+    backdrop-filter: blur(24px) saturate(1.6);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 12px 32px -12px rgb(0 0 0 / 0.35);
+  }
+
+  .persona-fade {
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='f' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeGaussianBlur stdDeviation='26'/%3E%3C/filter%3E%3Crect x='5%25' y='7%25' width='90%25' height='83%25' rx='56' filter='url(%23f)'/%3E%3C/svg%3E")
+      0 0 / 100% 100% no-repeat;
+  }
+}
+
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Source Serif 4', ui-serif, Georgia, serif;

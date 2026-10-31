@@ -25,10 +25,12 @@ export default function Globe({ className = '', controls = false, onLoad }: {
   useEffect(() => {
     if (!container.current || !TOKEN) return
     mapboxgl.accessToken = TOKEN
+    // Follow Claude's light/dark theme so the map blends into the chat
+    const dark = document.documentElement.dataset.theme !== 'light'
 
     const map = new mapboxgl.Map({
       container: container.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: dark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
       projection: 'globe',
       zoom: 2,
       center: [0, 20],
@@ -58,13 +60,23 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     }
 
     map.on('style.load', () => {
-      map.setFog({
-        color: 'rgb(10, 20, 30)',
-        'high-color': 'rgb(20, 30, 50)',
-        'horizon-blend': 0.1,
-        'space-color': 'rgb(11, 11, 25)',
-        'star-intensity': 0.6,
-      })
+      map.setFog(
+        dark
+          ? {
+              color: 'rgb(10, 20, 30)',
+              'high-color': 'rgb(20, 30, 50)',
+              'horizon-blend': 0.1,
+              'space-color': 'rgb(11, 11, 25)',
+              'star-intensity': 0.6,
+            }
+          : {
+              color: 'rgb(245, 244, 237)',
+              'high-color': 'rgb(200, 215, 235)',
+              'horizon-blend': 0.1,
+              'space-color': 'rgb(250, 249, 245)',
+              'star-intensity': 0,
+            },
+      )
     })
     map.on('load', () => {
       spinGlobe()
@@ -76,8 +88,14 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     map.on('dragend', resume)
     map.on('touchend', resume)
     map.on('moveend', spinGlobe)
+    // Mapbox only follows window resizes; the container also changes when the sidebar toggles
+    const observer = new ResizeObserver(() => map.resize())
+    observer.observe(container.current)
 
-    return () => map.remove()
+    return () => {
+      observer.disconnect()
+      map.remove()
+    }
   }, [controls])
 
   if (!TOKEN) {
