@@ -30,13 +30,13 @@ export default function Globe({ className = '', controls = false, lightPreset, o
   useEffect(() => {
     if (!container.current || !TOKEN) return
     mapboxgl.accessToken = TOKEN
-    // Follow Claude's light/dark theme so the map blends into the chat
+    // The flat styles, for anything not using the 3D city
     const dark = document.documentElement.dataset.theme !== 'light'
 
     const map = new mapboxgl.Map({
       container: container.current,
       style: city.current ? 'mapbox://styles/mapbox/standard' : dark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
-      ...(city.current && { config: { basemap: { lightPreset: city.current, showPointOfInterestLabels: false, showTransitLabels: false } } }),
+      ...(city.current && { config: { basemap: { lightPreset: city.current === 'day' ? 'dusk' : 'night', showPointOfInterestLabels: false, showTransitLabels: false } } }),
       projection: 'globe',
       zoom: 2,
       center: [0, 20],
@@ -106,12 +106,12 @@ export default function Globe({ className = '', controls = false, lightPreset, o
     }
   }, [controls])
 
-  // Night falls in two steps, through dusk, so the city visibly changes
+  // Night falls from dusk, so the city visibly changes
   useEffect(() => {
     const map = mapRef.current
     if (!map || !lightPreset || !map.isStyleLoaded() || lightPreset === city.current) return
     city.current = lightPreset
-    if (lightPreset === 'day') return void map.setConfigProperty('basemap', 'lightPreset', 'day')
+    if (lightPreset === 'day') return void map.setConfigProperty('basemap', 'lightPreset', 'dusk')
     map.setConfigProperty('basemap', 'lightPreset', 'dusk')
     const t = setTimeout(() => map.setConfigProperty('basemap', 'lightPreset', 'night'), DUSK_MS)
     return () => clearTimeout(t)

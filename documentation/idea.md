@@ -1,6 +1,6 @@
-# The Explorable Web
+# DUCK: The Explorable Web
 
-> Working name. The web is the world. Your intent is the lens. The interface is the view.
+> The web is the world. Your intent is the lens. The interface is the view.
 
 Our response to Adobe's *The Post-Website Business* challenge at BaselHack 2026.
 

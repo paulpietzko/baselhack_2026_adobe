@@ -16,7 +16,7 @@ export default function Connect({ onScan, onManual }: { onScan: (url: string) =>
           <span className="text-neutral-400">Ready for AI.</span>
         </h1>
         <p className="mt-5 max-w-md text-lg leading-snug text-neutral-500">
-          Paste your website. We read every page and rebuild your floors in 3D, so guests find you right in Claude.
+          Paste your website. We read every page and rebuild your floors in 3D, so guests find you right in DUCK.
         </p>
         <form
           onSubmit={(e) => {

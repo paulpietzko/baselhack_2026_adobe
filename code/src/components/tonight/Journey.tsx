@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Volume2, VolumeX, X } from 'lucide-react'
-import ChatInput from '../ChatInput'
-import ClaudeLogo from '../ClaudeLogo'
+import Duck, { DuckMark } from '../duck/Duck'
+import VoiceOrb, { Spoken, VoiceAura, VoiceHint } from '../duck/VoiceOrb'
 import GlobeView from '../GlobeView'
 import Scene, { H, LIGHTS, type Framing, type Light } from '../acme/Venue'
 import { Anchors, ClubNight, GroundGlow, Lens, Searchlights } from './Club'
@@ -25,12 +25,17 @@ import { CLUB, FLOOR_EXTRAS, PEOPLE, SHOPS, applyPublished, floorById, outfitByI
 import { START, compose, parseIntent, reduce, type ExperienceSpec, type Intent, type Journey as State, type SceneId } from '../../lib/journey'
 import { nightSound, type Mix } from '../../lib/nightSound'
 import { askEngine, fetchBusiness, reserve, reserveArticle } from '../../lib/presence'
+import { hush, speak, useVoice } from '../../lib/useVoice'
 import { searchPlaces, type Answer } from '../../data/search'
 
 const BUILD_MS = 1900
 // The building starts assembling while the map is still flying in, so one becomes the other
 const BUILD_DELAY_MS = 1500
 const TEARDOWN_MS = 500
+// Discovery often replaces its first line straight away: don't start saying one that's about to go
+const SPEAK_DELAY_MS = 500
+// The camera and the light can get ahead of you while you talk, because those are free to take back
+const PREVIEWS: Intent['kind'][] = ['basel', 'party', 'venue', 'shop', 'casino', 'plan']
 
 const IN_VENUE = (s: SceneId) => s === 'venue' || s === 'outfit'
 
@@ -99,11 +104,12 @@ function planRoute(j: State): [number, number][] {
 /** The thread of the night: the composer's context, and a way back to each decision */
 function Trail({ context, act }: { context: ExperienceSpec['context']; act: (i: Intent) => void }) {
   return (
-    <nav aria-label="Decided so far" className="absolute top-5 left-6 z-10 flex max-w-[calc(100%-10rem)] flex-wrap items-center text-sm font-medium text-white [text-shadow:0_1px_8px_rgb(0_0_0/0.9)]">
+    <nav aria-label="Your wake: what's been decided so far" className="absolute top-5 left-6 z-10 flex max-w-[calc(100%-10rem)] flex-wrap items-center gap-y-1 text-sm font-medium text-ink [text-shadow:0_1px_8px_rgb(3_12_11/0.95)]">
+      <span className="mr-3 flex items-center gap-1.5 font-display text-lg tracking-tight"><DuckMark size={18} /> duck.</span>
       {context.map((s, i) => (
         <span key={s.label} className="flex items-center">
-          {i > 0 && <span className="mx-2 opacity-50">›</span>}
-          <button onClick={() => act(s.go)} className="opacity-85 hover:opacity-100">{s.label}</button>
+          <span aria-hidden className={`mx-2 size-1.5 rounded-full ${i === context.length - 1 ? 'bg-mint shadow-[0_0_10px_2px_rgb(86_230_179/0.8)]' : 'bg-mint/45'}`} />
+          <button onClick={() => act(s.go)} className={`transition-colors hover:text-mint ${i === context.length - 1 ? '' : 'text-muted'}`}>{s.label}</button>
         </span>
       ))}
     </nav>
@@ -119,17 +125,21 @@ const PRIMITIVES: Record<NonNullable<ExperienceSpec['primitive']>, typeof ShopTi
   itinerary: PlanTiles,
 }
 
+const MINT = '#56e6b3'
 const roundBtn = 'spatial-glass grid size-11 place-items-center rounded-full text-ink transition-transform hover:scale-105'
 
 /** One continuous world for the whole night out: intent in, place out, no pages in between. */
 export default function Journey({ first }: { first: string }) {
-  const firstIntent = useRef<Intent>(parseIntent(first) ?? { kind: 'basel' }).current
+  const firstIntent = useRef<Intent>(((i) => (i && i.kind !== 'book' ? i : { kind: 'basel' as const }))(parseIntent(first))).current
   const [j, setJ] = useState<State>(() => ({ ...START, ...reduce(START, firstIntent).patch }))
   // Only the latest exchange is on screen: the world is the answer, not a transcript
   const [line, setLine] = useState(() => ({ said: first, reply: reduce(START, firstIntent).reply }))
   const [settled, setSettled] = useState(false)
   const [hover, setHover] = useState<string | null>(null)
   const [sound, setSound] = useState(true)
+  const [speaking, setSpeaking] = useState(false)
+  // What the sentence so far seems to want, before it's been said
+  const [preview, setPreview] = useState<Intent | null>(null)
   const floorLabels = useRef<Record<string, HTMLElement | null>>({})
 
   const [, setPublishedAt] = useState('')
@@ -195,6 +205,8 @@ export default function Journey({ first }: { first: string }) {
   const actRef = useRef(act)
   actRef.current = act
 
+  const spec = compose(j)
+
   const onSend = (text: string) => {
     const intent = parseIntent(text)
     if (intent) return act(intent, text)
@@ -207,26 +219,64 @@ export default function Journey({ first }: { first: string }) {
       .catch(unplaced)
   }
 
+  const voice = useVoice({
+    scriptedLine: spec.next[0],
+    onBegin: () => {
+      hush()
+      setSpeaking(false)
+    },
+    onInterim: (text) => {
+      const intent = parseIntent(text)
+      if (intent && PREVIEWS.includes(intent.kind)) setPreview(intent)
+    },
+    onEnd: () => setPreview(null),
+    // A microphone mishears, and a sentence can mention paying without meaning it: booking takes a press
+    onFinal: (text) => (parseIntent(text)?.kind === 'book' ? setLine({ said: text, reply: "Nothing gets booked on my say-so. Press it yourself when you're ready." }) : onSend(text)),
+  })
+
   useEffect(() => {
     nightSound.start()
     refresh()
     if (firstIntent.kind === 'party' || firstIntent.kind === 'basel') ask(firstIntent.kind, first)
-    return () => nightSound.stop()
+    return () => {
+      nightSound.stop()
+      hush()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => nightSound.set(mixFor(j, sound)), [j, sound])
+
+  // The music steps aside for whoever is talking
+  useEffect(() => {
+    const mix = mixFor(j, sound)
+    nightSound.set(voice.listening ? { ...mix, gain: mix.gain * 0.12 } : speaking ? { ...mix, gain: mix.gain * 0.3 } : mix)
+  }, [j, sound, voice.listening, speaking])
+
+  useEffect(() => {
+    if (!sound || voice.listening || line.reply.endsWith('…')) {
+      hush()
+      setSpeaking(false)
+      return
+    }
+    const t = setTimeout(() => {
+      setSpeaking(true)
+      speak(line.reply, () => setSpeaking(false))
+    }, SPEAK_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [line, sound]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !(e.target instanceof HTMLTextAreaElement)) act({ kind: 'back' })
+      if (e.key === 'Escape' && !voice.listening) act({ kind: 'back' })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [act])
+  }, [act, voice.listening])
 
-  const spec = compose(j)
   const store = shopById(spec.storeId)
-  const storeCamera = useMemo(() => (store ? { ...CAMERAS.store, center: store.lngLat } : CAMERAS.store), [store])
-  const camera = spec.camera === 'store' ? storeCamera : CAMERAS[spec.camera]
+  // Composed, not acted on: nothing is decided until the sentence ends
+  const ahead = preview ? compose({ ...j, ...reduce(j, preview).patch }) : spec
+  const headedTo = shopById(ahead.storeId)
+  const storeCamera = useMemo(() => (headedTo ? { ...CAMERAS.store, center: headedTo.lngLat } : CAMERAS.store), [headedTo])
+  const camera = ahead.camera === 'store' ? storeCamera : CAMERAS[ahead.camera]
   const venue = IN_VENUE(j.scene)
   const open = spec.openFloor
 
@@ -286,11 +336,11 @@ export default function Journey({ first }: { first: string }) {
   const mapMood = open && !onRoof ? 'brightness-[0.2] blur-[10px]' : onRoof ? 'brightness-90 blur-[1.5px]' : ''
 
   return (
-    <main className="immersive fixed inset-0 z-30 overflow-hidden bg-black font-system">
+    <main className="immersive fixed inset-0 z-30 overflow-hidden bg-bg font-sans">
       <div className={`absolute inset-0 transition-[filter] duration-1000 ${mapMood}`}>
         <GlobeView
-          camera={onRoof ? CAMERAS.rooftop : camera}
-          lightPreset={spec.daylight ? 'day' : 'night'}
+          camera={onRoof && !preview ? CAMERAS.rooftop : camera}
+          lightPreset={ahead.daylight ? 'day' : 'night'}
           places={places}
           highlight={spec.view === 'city-night' ? HAFENLICHT_PLACE.id : spec.view === 'store-selector' ? SHOPS[0].id : undefined}
           route={route}
@@ -317,10 +367,11 @@ export default function Journey({ first }: { first: string }) {
           framing={framingFor(j)}
           scanGlobe={false}
         >
-          <ClubNight built={venue && progress > 0.85} open={open} color={LIGHTS[light]} keepClear={j.scene !== 'venue'} />
-          <GroundGlow show={venue && progress > 0.5 && !open} color={LIGHTS[light]} radius={13} />
+          {/* Mint from outside, the club's own light once you're in */}
+          <ClubNight built={venue && progress > 0.85} open={open} color={open ? LIGHTS[light] : MINT} keepClear={j.scene !== 'venue'} />
+          <GroundGlow show={venue && progress > 0.5 && !open} color={MINT} radius={13} />
           <GroundGlow show={j.scene === 'casino' && settled} color="#ffb040" radius={15} y={0.02} />
-          <Searchlights show={venue && !open && progress > 0.85} color={LIGHTS[light]} spots={ROOF_LIGHTS} />
+          <Searchlights show={venue && !open && progress > 0.85} color={MINT} spots={ROOF_LIGHTS} />
           <Searchlights show={j.scene === 'casino' && progress < 0.3} color="#ffc060" spots={CASINO_LIGHTS} />
           <GroundGlow show={!!store && settled} color="#ffc680" radius={13} y={0.02} />
           <Storefront name={store?.name ?? ''} show={!!store && settled} />
@@ -350,16 +401,17 @@ export default function Journey({ first }: { first: string }) {
           className="spatial-glass absolute top-0 left-0 z-10 flex items-center gap-3 rounded-full py-2.5 pr-3 pl-5 text-left text-ink transition-[opacity,scale] duration-500 hover:scale-105"
         >
           <span>
-            <span className="block font-serif text-lg leading-tight whitespace-nowrap">{f.name}</span>
+            <span className="block font-display text-lg leading-tight whitespace-nowrap">{f.name}</span>
             <span className="block text-[13px] whitespace-nowrap text-muted">{f.music}</span>
           </span>
-          <span className="size-3 rounded-full bg-clay shadow-[0_0_14px_3px_rgb(217_119_87/0.8)]" />
+          <span className="size-3 rounded-full bg-mint shadow-[0_0_14px_3px_rgb(86_230_179/0.8)]" />
         </button>
       ))}
 
-      <div aria-hidden className="pointer-events-none absolute inset-0 shadow-[inset_0_0_180px_60px_rgb(0_0_0/0.55)]" />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/50 to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/85 via-black/45 to-transparent" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 shadow-[inset_0_0_180px_60px_rgb(5_20_18/0.72)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#091b1a]/75 to-transparent" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-96 bg-gradient-to-t from-[#091b1a]/95 via-[#091b1a]/55 to-transparent" />
+      <VoiceAura on={voice.listening} level={voice.level} />
 
       <Trail context={spec.context} act={act} />
 
@@ -382,27 +434,46 @@ export default function Journey({ first }: { first: string }) {
         </aside>
       )}
 
-      <div className="absolute bottom-6 left-6 z-10 mx-auto max-w-2xl font-sans" style={{ right: Tiles ? TILES_WIDTH + 16 : 24 }}>
+      <div className="absolute bottom-5 left-6 z-10 mx-auto flex max-w-3xl flex-col items-center text-center font-sans" style={{ right: Tiles ? TILES_WIDTH + 16 : 24 }}>
+        <span key={`ripple-${line.reply}`} aria-hidden className="intent-ripple" />
         {trace && spec.places === 'discovery' && (
-          <p className="mb-2 text-xs text-white/70 [text-shadow:0_1px_6px_rgb(0_0_0/0.9)]">{trace}</p>
+          <p className="mb-2 text-xs text-muted [text-shadow:0_1px_6px_rgb(3_12_11/0.95)]">{trace}</p>
         )}
-        <div key={line.reply} className="animate-card-in mb-4 text-white [text-shadow:0_2px_12px_rgb(0_0_0/0.95)]">
-          {line.said && <p className="mb-1.5 text-[15px] opacity-70">“{line.said}”</p>}
-          <p className="flex gap-3 font-serif text-[26px] leading-[1.2]">
-            <span className="mt-1 shrink-0"><ClaudeLogo size={24} /></span>
-            {line.reply}
-          </p>
-        </div>
-        {chips.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {chips.map((c) => (
-              <button key={c} onClick={() => onSend(c)} className="spatial-glass rounded-full px-4 py-2 text-sm font-medium transition-colors hover:text-clay">
-                {c}
-              </button>
-            ))}
+        {j.booked && (
+          <div className="mb-2">
+            <Duck state="surface" size={64} />
           </div>
         )}
-        <ChatInput onSend={onSend} rows={1} compact placeholder="Where next?" voiceLine={chips[0]} />
+        {voice.listening ? (
+          <p aria-live="polite" className="mb-6 min-h-[1.2em] font-display text-[32px] leading-[1.2] font-medium tracking-tight text-ink/80 [text-shadow:0_2px_16px_rgb(3_12_11/0.95)]">
+            {voice.interim}
+          </p>
+        ) : (
+          <div key={line.reply} className="mb-3 text-ink [text-shadow:0_2px_12px_rgb(3_12_11/0.95)]">
+            {line.said && <p className="animate-card-in mb-1.5 text-[15px] opacity-70">“{line.said}”</p>}
+            <p aria-live="polite" className="font-display text-[27px] leading-[1.2] font-medium tracking-tight">
+              <Spoken text={line.reply} />
+            </p>
+          </div>
+        )}
+        <div className={`mb-4 flex flex-wrap justify-center gap-x-5 gap-y-1 transition-opacity duration-300 ${voice.listening ? 'opacity-0' : ''}`}>
+          {chips.map((c) => (
+            <button key={c} onClick={() => onSend(c)} disabled={voice.listening} className="text-sm text-muted underline-offset-4 transition-colors [text-shadow:0_1px_6px_rgb(3_12_11/0.95)] hover:text-mint hover:underline">
+              “{c}”
+            </button>
+          ))}
+        </div>
+        <VoiceOrb
+          state={voice.listening ? 'listening' : line.reply.endsWith('…') ? 'thinking' : speaking ? 'speaking' : 'idle'}
+          level={voice.level}
+          size={64}
+          label={voice.listening ? 'Stop listening' : 'Talk to Duck'}
+          onPress={voice.press}
+          onRelease={voice.release}
+        >
+          <DuckMark size={24} thinking={line.reply.endsWith('…')} />
+        </VoiceOrb>
+        <VoiceHint listening={voice.listening} missed={voice.missed} scripted={voice.scripted} />
       </div>
     </main>
   )

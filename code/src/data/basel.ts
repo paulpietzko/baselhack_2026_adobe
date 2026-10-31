@@ -65,8 +65,8 @@ export const BASEL_DAY_PLACES: Place[] = [
     icon: Waves,
     tint: '#1f3540',
     iconColor: '#7cc4e8',
-    cardAngle: -40,
-    cardDistance: 220,
+    cardAngle: -90,
+    cardDistance: 190,
   },
   {
     id: 'spalentor',

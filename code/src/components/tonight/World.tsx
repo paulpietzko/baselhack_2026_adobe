@@ -403,7 +403,7 @@ export function Storefront({ name, show }: { name: string; show: boolean }) {
       ))}
       <mesh position={[0, 2.62, 2.95]} rotation-x={0.5}>
         <boxGeometry args={[8.2, 0.06, 1]} />
-        <meshStandardMaterial color="#c6613f" emissive="#c6613f" emissiveIntensity={0.5} />
+        <meshStandardMaterial color="#29645a" emissive="#29645a" emissiveIntensity={0.7} />
       </mesh>
       <mesh position={[0, 3.6, 2.54]}>
         <planeGeometry args={[6.4, 1.25]} />

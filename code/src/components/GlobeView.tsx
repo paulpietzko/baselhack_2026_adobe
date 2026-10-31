@@ -11,8 +11,8 @@ const ROUTE_DRAW_MS = 2400
 function addRoute(map: mapboxgl.Map) {
   map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   const line = { 'line-cap': 'round', 'line-join': 'round' } as const
-  map.addLayer({ id: 'route-glow', type: 'line', slot: 'top', source: 'route', layout: line, paint: { 'line-color': '#ff7a45', 'line-width': 18, 'line-blur': 12, 'line-opacity': 0.8, 'line-emissive-strength': 1 } })
-  map.addLayer({ id: 'route-line', type: 'line', slot: 'top', source: 'route', layout: line, paint: { 'line-color': '#ffd2bd', 'line-width': 4, 'line-emissive-strength': 1 } })
+  map.addLayer({ id: 'route-glow', type: 'line', slot: 'top', source: 'route', layout: line, paint: { 'line-color': '#56e6b3', 'line-width': 18, 'line-blur': 12, 'line-opacity': 0.8, 'line-emissive-strength': 1 } })
+  map.addLayer({ id: 'route-line', type: 'line', slot: 'top', source: 'route', layout: line, paint: { 'line-color': '#c9f7e4', 'line-width': 4, 'line-emissive-strength': 1 } })
 }
 
 /** The first `k` (0–1) of a path, by length */

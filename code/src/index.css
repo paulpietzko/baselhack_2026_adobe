@@ -1,8 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
 @import 'tailwindcss';
-
-/* Styles for when the Claude sidebar is collapsed to its icon rail, see components/Sidebar.tsx */
-@custom-variant sidebar-collapsed (:root:has([data-sidebar='collapsed']) &);
 
 /* Feathered edges like a Vision Pro persona: a blurred rounded rectangle as mask, a bit more fade at the bottom.
    No viewBox, so the blur is in real pixels and stays even at any size. */
@@ -18,19 +15,171 @@
   }
 
   .immersive {
-    color-scheme: dark;
-    --surface: #17161c;
-    --ink: #faf9f5;
-    --muted: #b8b5ad;
     color: var(--ink);
   }
 
+  /* Dark pond glass, day and night: it floats over a real, sometimes bright, city */
   .immersive .spatial-glass {
-    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    background: linear-gradient(155deg, color-mix(in srgb, var(--surface) 72%, transparent), color-mix(in srgb, var(--bg) 82%, transparent));
+    backdrop-filter: blur(28px) saturate(1.4);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.28),
-      inset 0 0 0 1px rgb(255 255 255 / 0.1),
-      0 24px 60px -18px rgb(0 0 0 / 0.65);
+      inset 0 1px 0 rgb(201 247 228 / 0.28),
+      inset 0 0 0 1px rgb(86 230 179 / 0.16),
+      0 0 32px -12px rgb(86 230 179 / 0.28),
+      0 24px 60px -18px rgb(3 12 11 / 0.8);
+  }
+
+  /* One world: the real city, pulled into the same midnight emerald */
+  .immersive .mapboxgl-canvas {
+    filter: hue-rotate(-38deg) saturate(0.78);
+  }
+
+  /* The pond at night: faint stars over a slow aurora */
+  .pond-sky {
+    background:
+      radial-gradient(1px 1px at 12% 18%, rgb(240 246 238 / 0.7), transparent),
+      radial-gradient(1px 1px at 27% 62%, rgb(240 246 238 / 0.4), transparent),
+      radial-gradient(1.5px 1.5px at 41% 12%, rgb(240 246 238 / 0.6), transparent),
+      radial-gradient(1px 1px at 58% 30%, rgb(240 246 238 / 0.5), transparent),
+      radial-gradient(1px 1px at 69% 8%, rgb(240 246 238 / 0.45), transparent),
+      radial-gradient(1.5px 1.5px at 83% 24%, rgb(240 246 238 / 0.6), transparent),
+      radial-gradient(1px 1px at 92% 66%, rgb(240 246 238 / 0.35), transparent),
+      radial-gradient(1px 1px at 7% 78%, rgb(240 246 238 / 0.35), transparent),
+      var(--bg);
+  }
+  .pond-sky::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    pointer-events: none;
+    background:
+      radial-gradient(40% 30% at 30% 35%, rgb(86 230 179 / 0.16), transparent 70%),
+      radial-gradient(35% 28% at 72% 55%, rgb(166 242 109 / 0.08), transparent 70%);
+    animation: aurora 18s ease-in-out infinite alternate;
+  }
+
+  /* Only opacity changes while listening, so a full-screen glow stays cheap over the map */
+  .voice-aura {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms linear;
+    box-shadow:
+      inset 0 0 140px 26px rgb(86 230 179 / 0.5),
+      inset 0 0 36px 3px rgb(166 242 109 / 0.5),
+      inset 0 -70px 130px -40px rgb(249 219 112 / 0.3);
+  }
+
+  .spoken-word {
+    display: inline-block;
+    white-space: pre;
+    animation: word-in 380ms ease-out both;
+  }
+
+  .duck {
+    overflow: visible;
+    transform-origin: 50% 80%;
+    transition: transform 400ms ease;
+  }
+  .duck-idle { animation: duck-bob 4.5s ease-in-out infinite; }
+  .duck-listening { transform: rotate(-9deg) translateY(-3px); }
+  .duck-thinking { animation: duck-think 600ms cubic-bezier(0.3, 0, 0.3, 1) both; }
+  .duck-dive { animation: duck-dive 850ms cubic-bezier(0.5, 0, 0.8, 0.4) both; }
+  .duck-surface { animation: duck-surface 900ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+  .duck-mark-thinking { animation: mark-think 900ms ease-in-out infinite; transform-origin: center; }
+
+  .ripples {
+    position: absolute;
+    top: 72%;
+    left: 50%;
+    pointer-events: none;
+  }
+  .ripples span {
+    position: absolute;
+    left: -210px;
+    top: -70px;
+    width: 420px;
+    height: 140px;
+    border: 1px solid var(--mint);
+    border-radius: 50%;
+    opacity: 0;
+    animation: ripple 6.5s ease-out infinite;
+  }
+  .ripples-active span {
+    animation: ripple-burst 1.1s ease-out infinite;
+  }
+
+  /* Every intention leaves a ring */
+  .intent-ripple {
+    position: absolute;
+    left: 50%;
+    bottom: 40px;
+    width: 60vmin;
+    height: 60vmin;
+    margin-left: -30vmin;
+    margin-bottom: -30vmin;
+    border: 1.5px solid var(--mint);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: intent-ripple 750ms ease-out both;
+  }
+}
+
+@keyframes duck-bob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-4px) rotate(-1.2deg); }
+}
+@keyframes duck-think {
+  to { transform: scale(0.82, 0.68) translateY(10px); }
+}
+@keyframes duck-dive {
+  from { transform: scale(0.82, 0.68) translateY(10px); opacity: 1; }
+  45% { transform: rotate(38deg) translateY(8px); opacity: 1; }
+  to { transform: rotate(72deg) translateY(90px) scale(0.5); opacity: 0; }
+}
+@keyframes duck-surface {
+  from { transform: translateY(40px) scale(0.7); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes mark-think {
+  50% { transform: scale(0.82, 0.72); }
+}
+@keyframes ripple {
+  from { transform: scale(0.28); opacity: 0.5; }
+  to { transform: scale(1.5); opacity: 0; }
+}
+@keyframes ripple-burst {
+  from { transform: scale(0.25); opacity: 0.9; }
+  to { transform: scale(3.6); opacity: 0; }
+}
+@keyframes intent-ripple {
+  from { transform: scale(0.1); opacity: 0.7; }
+  to { transform: scale(1.5); opacity: 0; }
+}
+@keyframes aurora {
+  from { transform: translate3d(-4%, -2%, 0) rotate(-3deg); }
+  to { transform: translate3d(5%, 3%, 0) rotate(4deg); }
+}
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(5px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes morph-in {
+  from { opacity: 0; transform: translateY(70px) scale(0.84); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .duck, .duck-idle, .duck-mark-thinking, .ripples span, .intent-ripple, .pond-sky::before, .spoken-word { animation: none; }
+  .intent-ripple { display: none; }
+}
+
+@layer components {
+  .morph-in {
+    animation: morph-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: 50% 100%;
   }
 
   .persona-fade {
@@ -41,12 +190,14 @@
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Source Serif 4', ui-serif, Georgia, serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   /* Acme vendor portal: SF Pro on Apple devices, Inter elsewhere */
   --font-system: -apple-system, BlinkMacSystemFont, 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-  --color-clay: #d97757;
-  --color-clay-dark: #c6613f;
+  --color-mint: #56e6b3;
+  --color-mint-dark: #3fcb9b;
+  --color-lime: #a6f26d;
+  --color-duck: #f9db70;
 
   /* Chat → globe transition */
   --animate-globe-in: globe-in 900ms ease-out both;
@@ -93,10 +244,9 @@
   }
 }
 
-/* Theme colors switch with <html data-theme="light|dark">, see hooks/useTheme.ts */
+/* Midnight emerald: dark green stage, mint for what you can touch, a little duck yellow */
 @theme inline {
   --color-bg: var(--bg);
-  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-hover: var(--hover);
   --color-bubble: var(--bubble);
@@ -107,31 +257,17 @@
 }
 
 @layer base {
-  :root,
-  [data-theme='dark'] {
+  :root {
     color-scheme: dark;
-    --bg: #1f1e1d;
-    --sidebar: #1a1918;
-    --surface: #30302e;
-    --hover: #3a3936;
-    --bubble: #2a2927;
-    --border: #3d3d3a;
-    --border-strong: #57564f;
-    --ink: #faf9f5;
-    --muted: #a6a39b;
-  }
-
-  [data-theme='light'] {
-    color-scheme: light;
-    --bg: #faf9f5;
-    --sidebar: #f5f4ed;
-    --surface: #ffffff;
-    --hover: #ebe9df;
-    --bubble: #f0eee6;
-    --border: #e8e6dc;
-    --border-strong: #d5d2c6;
-    --ink: #141413;
-    --muted: #73726c;
+    --bg: #091b1a;
+    --surface: #14342f;
+    --hover: #29645a;
+    --bubble: #14342f;
+    --border: #29645a;
+    --border-strong: #56e6b3;
+    --mint: #56e6b3;
+    --ink: #f0f6ee;
+    --muted: #92b8ab;
   }
 
   body {

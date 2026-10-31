@@ -16,7 +16,7 @@ function Tile({ icon: Icon, title, hint, delay = 0, children }: { icon: LucideIc
   return (
     <section className="spatial-glass animate-card-in shrink-0 rounded-[30px] p-5 text-ink" style={{ animationDelay: `${delay}ms` }}>
       <h3 className="mb-3 flex items-center gap-2 text-[15px] font-semibold">
-        <Icon size={18} className="text-clay" /> {title}
+        <Icon size={18} className="text-mint" /> {title}
         {hint && <span className="ml-auto truncate pl-2 text-[13px] font-normal text-muted">{hint}</span>}
       </h3>
       {children}
@@ -28,7 +28,7 @@ function Row({ active, onClick, children }: { active?: boolean; onClick: () => v
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors ${active ? 'bg-clay/25 ring-1 ring-clay' : 'bg-ink/[0.06] hover:bg-ink/[0.12]'}`}
+      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors ${active ? 'bg-mint/25 ring-1 ring-mint' : 'bg-ink/[0.06] hover:bg-ink/[0.12]'}`}
     >
       {children}
     </button>
@@ -37,13 +37,13 @@ function Row({ active, onClick, children }: { active?: boolean; onClick: () => v
 
 function Go({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
-    <button onClick={onClick} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-clay py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-clay-dark">
+    <button onClick={onClick} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-mint py-3.5 text-[15px] font-semibold text-bg transition-colors hover:bg-mint-dark">
       {children} <ChevronRight size={17} />
     </button>
   )
 }
 
-const Headline = ({ children }: { children: ReactNode }) => <p className="font-serif text-2xl leading-tight">{children}</p>
+const Headline = ({ children }: { children: ReactNode }) => <p className="font-display text-2xl leading-tight">{children}</p>
 
 const fmtTime = (iso: string) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '')
 
@@ -63,12 +63,12 @@ function Source({ path }: { path: string }) {
 function Peek({ id, icon: Icon, title, headline, j, act, children }: { id: TileId; icon: LucideIcon; title: string; headline: string; j: Journey; act: TilesProps['act']; children: ReactNode }) {
   const open = j.tile === id
   return (
-    <section className={`spatial-glass animate-card-in shrink-0 rounded-[28px] text-ink transition-shadow ${open ? 'ring-1 ring-clay' : ''}`}>
+    <section className={`spatial-glass animate-card-in shrink-0 rounded-[28px] text-ink transition-shadow ${open ? 'ring-1 ring-mint' : ''}`}>
       <button onClick={() => act({ kind: 'tile', id })} aria-expanded={open} className="flex w-full items-center gap-4 p-4 text-left">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-clay/20"><Icon size={21} className="text-clay" /></span>
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-mint/20"><Icon size={21} className="text-mint" /></span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] text-muted">{title}</span>
-          <span className="block font-serif text-[21px] leading-tight">{headline}</span>
+          <span className="block text-[11px] tracking-[0.14em] text-muted uppercase">{title}</span>
+          <span className="block font-display text-[21px] leading-tight">{headline}</span>
         </span>
         <ChevronRight size={18} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
       </button>
@@ -88,7 +88,7 @@ function EventsDetail({ j, act }: TilesProps) {
   if (j.ticketRef) {
     return (
       <p className="flex items-center gap-2 rounded-2xl bg-ink/[0.06] p-3.5 text-[15px] font-semibold">
-        <Check size={18} className="text-clay" /> {PEOPLE} tickets, {j.ticketRef}
+        <Check size={18} className="text-mint" /> {PEOPLE} tickets, {j.ticketRef}
       </p>
     )
   }
@@ -148,8 +148,9 @@ export function OutfitTiles({ j, act }: TilesProps) {
   const floor = (j.floor ?? 'main-hall') as FloorId
   const door = (o: (typeof OUTFITS)[number]) => dressCheck(o, CLUB.dress)
   const fits = (o: (typeof OUTFITS)[number]) => door(o).ok && (j.budget === null || o.price <= j.budget) && (!j.vibe || o.vibe === j.vibe)
-  const pill = (active: boolean) => `rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${active ? 'bg-clay text-white' : 'bg-ink/[0.07] hover:bg-ink/[0.14]'}`
+  const pill = (active: boolean) => `rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${active ? 'bg-mint text-bg' : 'bg-ink/[0.07] hover:bg-ink/[0.14]'}`
   return (
+    <div className="morph-in">
     <Tile icon={Shirt} title="For tonight" hint={`${CLUB.name}, ${floorById(floor)!.name}`}>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {BUDGETS.map((max) => (
@@ -168,7 +169,7 @@ export function OutfitTiles({ j, act }: TilesProps) {
             <Row active={j.outfit === o.id} onClick={() => act({ kind: 'pick', id: o.id })}>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-serif text-xl">{o.name}</span>
+                  <span className="font-display text-xl">{o.name}</span>
                   <span className="text-sm text-muted tabular-nums">CHF {o.price}</span>
                 </span>
                 <span className="mt-0.5 block text-[13px] leading-snug text-muted">{door(o).ok ? o.onFloor[floor] : door(o).reason}</span>
@@ -195,6 +196,7 @@ export function OutfitTiles({ j, act }: TilesProps) {
         </div>
       )}
     </Tile>
+    </div>
   )
 }
 
@@ -209,17 +211,17 @@ export function ShopTiles({ j, act }: TilesProps) {
         {articlesFor(outfit, shop).map((a) => {
           const held = j.reserved.find((r) => r.id === a.id)
           return (
-            <div key={a.id} className={`rounded-2xl px-4 py-3 ${held ? 'bg-clay/25 ring-1 ring-clay' : 'bg-ink/[0.06]'}`}>
+            <div key={a.id} className={`rounded-2xl px-4 py-3 ${held ? 'bg-mint/25 ring-1 ring-mint' : 'bg-ink/[0.06]'}`}>
               <span className="flex items-baseline justify-between gap-2">
-                <span className="font-serif text-xl">{a.name}</span>
+                <span className="font-display text-xl">{a.name}</span>
                 <span className="text-sm text-muted tabular-nums">CHF {a.price}</span>
               </span>
               <span className="mt-0.5 flex items-center justify-between gap-2">
                 <span className="text-[13px] text-muted">{a.note}</span>
                 {held ? (
-                  <span className="flex items-center gap-1 text-[13px] font-semibold"><Check size={15} className="text-clay" /> {held.ref}</span>
+                  <span className="flex items-center gap-1 text-[13px] font-semibold"><Check size={15} className="text-mint" /> {held.ref}</span>
                 ) : (
-                  <button onClick={() => act({ kind: 'reserveArticle', id: a.id })} className="rounded-full bg-clay px-3 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-clay-dark">
+                  <button onClick={() => act({ kind: 'reserveArticle', id: a.id })} className="rounded-full bg-mint px-3 py-1 text-[13px] font-semibold text-bg transition-colors hover:bg-mint-dark">
                     Reserve {PEOPLE}
                   </button>
                 )}
@@ -241,14 +243,14 @@ export function CasinoTiles({ j, act }: TilesProps) {
         <Headline>
           {outfit ? (
             <span className="flex items-center gap-2">
-              {outfit.casino.ok && <Check size={22} className="shrink-0 text-clay" />}
+              {outfit.casino.ok && <Check size={22} className="shrink-0 text-mint" />}
               {outfit.name}
             </span>
           ) : (
             'Smart dress'
           )}
         </Headline>
-        <p className={`mt-1 text-sm leading-snug ${outfit && !outfit.casino.ok ? 'text-clay' : 'text-muted'}`}>
+        <p className={`mt-1 text-sm leading-snug ${outfit && !outfit.casino.ok ? 'text-mint' : 'text-muted'}`}>
           {outfit ? outfit.casino.note : 'You haven’t picked outfits yet.'}
         </p>
         <p className="mt-2 text-[13px] text-muted">18+, bring ID. CHF {CASINO.entry} entry.</p>
@@ -278,7 +280,7 @@ export function PlanTiles({ j, act }: TilesProps) {
         {stops.map((s) => (
           <li key={s.time}>
             <Row onClick={() => act({ kind: s.to })}>
-              <span className="w-12 shrink-0 text-[15px] font-semibold text-clay tabular-nums">{s.time}</span>
+              <span className="w-12 shrink-0 text-[15px] font-semibold text-mint tabular-nums">{s.time}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-base font-medium">{s.title}</span>
                 <span className="block truncate text-[13px] text-muted">{s.detail}</span>
@@ -290,11 +292,11 @@ export function PlanTiles({ j, act }: TilesProps) {
       </ol>
       <p className="mt-4 flex items-baseline justify-between px-1">
         <span className="text-sm text-muted">Per person</span>
-        <span className="font-serif text-3xl tabular-nums">CHF {perPerson(j)}</span>
+        <span className="font-display text-3xl tabular-nums">CHF {perPerson(j)}</span>
       </p>
       {j.ticketRef ? (
         <p className="animate-card-in mt-3 rounded-2xl bg-ink/[0.06] p-3.5 text-[15px] font-semibold">
-          <span className="flex items-center gap-2"><Check size={18} className="text-clay" /> Tickets confirmed: {j.ticketRef}</span>
+          <span className="flex items-center gap-2"><Check size={18} className="text-mint" /> Tickets confirmed: {j.ticketRef}</span>
           <span className="mt-1 block text-[13px] font-normal text-muted">{j.reserved.length ? `${j.reserved.length} articles on hold at ${shopById(j.shop)?.name}. ` : ''}The casino isn't booked in this demo.</span>
         </p>
       ) : (
