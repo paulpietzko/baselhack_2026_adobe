@@ -5,8 +5,10 @@ import type { Place } from '../data/basel'
 const CLAY = '#d97757' // --color-clay; Mapbox markers need a literal color
 const CARD_WIDTH = 200
 const CARD_HEIGHT = 260 // approximate, used to keep cards on screen
-// Keep cards clear of the screen edges, the top buttons and the bottom voice bar
-const SAFE = { top: 76, bottom: 100, side: 16 }
+// Keep cards clear of the edges and the location pill on top
+const SAFE = { top: 52, bottom: 16, side: 16 }
+// Full-width mode sits behind the top bar and messages, and fades out at the bottom
+const SAFE_FULL = { top: 200, bottom: 150, side: 24 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(min, max))
 
@@ -19,6 +21,7 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
   useEffect(() => {
     const update = () => {
       const { clientWidth: w, clientHeight: h } = map.getContainer()
+      const safe = document.querySelector('[data-sidebar=collapsed]') ? SAFE_FULL : SAFE
       setPositions(
         places.map((place) => {
           const marker = map.project(place.lngLat)
@@ -29,8 +32,8 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
             place,
             marker: { x: marker.x, y: marker.y },
             card: {
-              x: clamp(x, SAFE.side + CARD_WIDTH / 2, w - SAFE.side - CARD_WIDTH / 2),
-              y: clamp(y, SAFE.top + CARD_HEIGHT / 2, h - SAFE.bottom - CARD_HEIGHT / 2),
+              x: clamp(x, safe.side + CARD_WIDTH / 2, w - safe.side - CARD_WIDTH / 2),
+              y: clamp(y, safe.top + CARD_HEIGHT / 2, h - safe.bottom - CARD_HEIGHT / 2),
             },
           }
         }),

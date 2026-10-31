@@ -5,7 +5,7 @@ export default function TopBar() {
   const { theme, toggle } = useTheme()
 
   return (
-    <header className="flex items-center gap-2 px-4 py-2.5">
+    <header className="relative z-20 flex items-center gap-2 px-4 py-2.5">
       <button
         onClick={toggle}
         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
