@@ -29,7 +29,6 @@ const GLOBE_INTRO_MS = 500
 const FLY_DURATION_MS = 2500
 
 const GEM = BASEL_PLACES.find((p) => p.id === CLUB_ROUGE.id)!
-const GEM_COLOR = '#d97757' // clay
 const EXTRUDED = ['==', ['get', 'extrude'], 'true'] as const
 
 /** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
@@ -56,8 +55,21 @@ function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
   )
 }
 
-/** Find the building under the gem and extrude it in clay */
-function highlightBuilding(m: mapboxgl.Map) {
+// The club's two floors sit on top of its building: the bottom 60% stays grey, the top 40% is split into two clay floors
+const CLUB_FROM = 0.6
+const FLOORS = [
+  { id: 'gem-floor-lower', name: 'lower', from: 0.6, to: 0.8, color: '#c96a4b', hover: '#f0a487' },
+  { id: 'gem-floor-upper', name: 'upper', from: 0.8, to: 1, color: '#e08463', hover: '#f8c2ad' },
+] as const
+export type ClubFloor = (typeof FLOORS)[number]['name']
+const DIVIDER_M = 0.4 // dark slab between the two floors, so they read as separate floors
+
+/** Height at a fraction of the building, from its base to its roof */
+const at = (f: number, dm = 0) =>
+  ['+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], f], dm] as unknown as mapboxgl.ExpressionSpecification
+
+/** Find the building under the gem: grey below, its top two floors in clay as separate, hoverable layers */
+function highlightBuilding(m: mapboxgl.Map, dark: boolean): string | number | undefined {
   const p = m.project(GEM.lngLat)
   // Widen the search until we hit a building (the pin may sit on a street)
   let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
@@ -66,22 +78,73 @@ function highlightBuilding(m: mapboxgl.Map) {
     if (building) break
   }
   if (!building || building.id == null || m.getLayer('gem-building')) return
-  // Drop the club from the grey layer, otherwise grey and clay walls overlap and z-fight (stripes)
+  // Drop the club from the grey layer, otherwise the layers' walls overlap and z-fight (stripes)
   m.setFilter('3d-buildings', ['all', EXTRUDED, ['!=', ['id'], building.id]] as unknown as mapboxgl.FilterSpecification)
+  const filter = ['==', ['id'], building.id] as mapboxgl.FilterSpecification
+  const base = { type: 'fill-extrusion' as const, source: 'composite', 'source-layer': 'building', filter }
+  // Rest of the building, grey like its neighbours
   m.addLayer({
+    ...base,
     id: 'gem-building',
-    type: 'fill-extrusion',
-    source: 'composite',
-    'source-layer': 'building',
-    filter: ['==', ['id'], building.id],
     paint: {
-      'fill-extrusion-color': GEM_COLOR,
-      // True height, same as the grey buildings around it
-      'fill-extrusion-height': ['get', 'height'],
+      'fill-extrusion-color': dark ? '#3a3a3c' : '#d6d3cc',
       'fill-extrusion-base': ['get', 'min_height'],
+      'fill-extrusion-height': at(CLUB_FROM),
       'fill-extrusion-opacity': 1,
     },
   })
+  for (const f of FLOORS) {
+    m.addLayer({
+      ...base,
+      id: f.id,
+      paint: {
+        'fill-extrusion-color': ['case', ['boolean', ['feature-state', f.id], false], f.hover, f.color] as mapboxgl.ExpressionSpecification,
+        'fill-extrusion-base': at(f.from),
+        // The lower floor stops short of the upper one, the divider fills the gap
+        'fill-extrusion-height': f.to < 1 ? at(f.to, -DIVIDER_M) : at(f.to),
+        'fill-extrusion-opacity': 1,
+      },
+    })
+  }
+  m.addLayer({
+    ...base,
+    id: 'gem-floor-divider',
+    paint: {
+      'fill-extrusion-color': '#7a3a26',
+      'fill-extrusion-base': at(FLOORS[0].to, -DIVIDER_M),
+      'fill-extrusion-height': at(FLOORS[0].to),
+      'fill-extrusion-opacity': 1,
+    },
+  })
+  return building.id
+}
+
+/** Hovering a club floor lights it up with a pointer cursor; clicking it calls onClick. Returns a cleanup. */
+function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick: (floor: ClubFloor) => void) {
+  const feature = { source: 'composite', sourceLayer: 'building', id }
+  const off = FLOORS.map((f) => {
+    const enter = () => {
+      m.setFeatureState(feature, { [f.id]: true })
+      m.getCanvas().style.cursor = 'pointer'
+    }
+    const leave = () => {
+      m.setFeatureState(feature, { [f.id]: false })
+      m.getCanvas().style.cursor = ''
+    }
+    const click = () => onClick(f.name)
+    m.on('mouseenter', f.id, enter)
+    m.on('mouseleave', f.id, leave)
+    m.on('click', f.id, click)
+    return () => {
+      m.off('mouseenter', f.id, enter)
+      m.off('mouseleave', f.id, leave)
+      m.off('click', f.id, click)
+    }
+  })
+  return () => {
+    off.forEach((o) => o())
+    m.getCanvas().style.cursor = ''
+  }
 }
 
 /**
@@ -90,23 +153,33 @@ function highlightBuilding(m: mapboxgl.Map) {
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, focused = false, searching = null }: {
+export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick }: {
   places: Place[] | null
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
   /** While the agent searches: what it's looking up right now ('' before its first step); null when done */
   searching?: string | null
+  /** Clicked one of the club's two floors on top of its building */
+  onClubFloorsClick?: (floor: ClubFloor) => void
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
   const [arrivedAtGem, setArrivedAtGem] = useState(false)
+  // Latest handler without re-running the fly-in effect
+  const onClubFloorsClickRef = useRef(onClubFloorsClick)
+  onClubFloorsClickRef.current = onClubFloorsClick
 
   useEffect(() => {
     if (!map || !focused) return
-    add3dBuildings(map, document.documentElement.dataset.theme !== 'light')
+    const dark = document.documentElement.dataset.theme !== 'light'
+    add3dBuildings(map, dark)
     map.flyTo({ center: GEM.lngLat, zoom: 18.2, pitch: 60, bearing: -25, offset: [0, -40], duration: 3000, essential: true })
+    let cleanupFloors: (() => void) | undefined
     // Wait for the zoomed-in building tiles to render before looking up the club's building
-    const onIdle = () => highlightBuilding(map)
+    const onIdle = () => {
+      const id = highlightBuilding(map, dark)
+      if (id != null) cleanupFloors = makeClubFloorsInteractive(map, id, (floor) => onClubFloorsClickRef.current?.(floor))
+    }
     const onArrive = () => {
       setArrivedAtGem(true)
       map.once('idle', onIdle)
@@ -115,6 +188,7 @@ export default function GlobeView({ places, focused = false, searching = null }:
     return () => {
       map.off('moveend', onArrive)
       map.off('idle', onIdle)
+      cleanupFloors?.()
     }
   }, [map, focused])
 
