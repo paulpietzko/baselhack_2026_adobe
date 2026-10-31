@@ -1,8 +1,6 @@
-import { useNavigate } from 'react-router'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
-import { user } from '../data'
 
 const SUGGESTIONS = [
   { icon: PenLine, label: 'Write' },
@@ -18,16 +16,14 @@ const greeting = () => {
 }
 
 export default function Home() {
-  const navigate = useNavigate()
-
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
       <h1 className="mb-8 flex items-center gap-3 font-serif text-4xl font-normal">
         <ClaudeLogo size={36} />
-        {greeting()}, {user.name}
+        {greeting()}, John Doe
       </h1>
       <div className="w-full max-w-2xl">
-        <ChatInput onSend={(text) => navigate('/chat/new', { state: { text } })} />
+        <ChatInput />
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {SUGGESTIONS.map(({ icon: Icon, label }) => (
             <button

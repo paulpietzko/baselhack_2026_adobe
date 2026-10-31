@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUp, ChevronDown, Plus, SlidersHorizontal } from 'lucide-react'
+import { ArrowUp, ChevronDown, Mic, Plus, SlidersHorizontal } from 'lucide-react'
 
 const iconBtn = 'grid size-8 place-items-center rounded-lg border border-border text-muted hover:bg-bubble'
 
@@ -33,8 +33,11 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
       <div className="flex items-center gap-2">
         <button className={iconBtn}><Plus size={16} /></button>
         <button className={iconBtn}><SlidersHorizontal size={15} /></button>
-        <button className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-muted hover:bg-bubble">
-          Opus 5.5 <ChevronDown size={14} />
+        <button
+          aria-label="Voice input"
+          className="ml-auto flex items-center gap-1 rounded-lg px-2 py-1.5 text-muted hover:bg-bubble hover:text-ink"
+        >
+          <Mic size={17} /> <ChevronDown size={12} />
         </button>
         <button
           onClick={send}
