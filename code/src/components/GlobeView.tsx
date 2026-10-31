@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import { MapPin } from 'lucide-react'
@@ -6,6 +6,7 @@ import Globe from './Globe'
 import PlaceCards from './PlaceCards'
 import ClubDetails from './ClubDetails'
 import ImmersiveFloor from './immersive/ImmersiveFloor'
+import ClubFloorLabels, { type ClubBuilding, type FloorLabel } from './ClubFloorLabels'
 import type { FloorId } from '../data/floors'
 import { BASEL_CAMERA, BASEL_PLACES, HAFENLICHT_CLUB, type Place } from '../data/basel'
 
@@ -82,7 +83,7 @@ const at = (f: number, dm = 0) =>
   ['+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], f], dm] as unknown as mapboxgl.ExpressionSpecification
 
 /** Find the building under the gem: grey below, its top two floors in clay as separate, hoverable layers */
-function highlightBuilding(m: mapboxgl.Map, dark: boolean): string | number | undefined {
+function highlightBuilding(m: mapboxgl.Map, dark: boolean): ClubBuilding | undefined {
   const p = m.project(GEM.lngLat)
   // Widen the search until we hit a building (the pin may sit on a street)
   let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
@@ -129,7 +130,18 @@ function highlightBuilding(m: mapboxgl.Map, dark: boolean): string | number | un
       'fill-extrusion-opacity': 1,
     },
   })
-  return building.id
+  // Footprint and height, for the floor labels
+  const { geometry: g, properties } = building as unknown as { geometry: { type: string; coordinates: unknown }; properties: Record<string, unknown> | null }
+  // Polygon → one polygon, MultiPolygon → several; the outer ring of each
+  const polygons = (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []) as number[][][][]
+  const rings = polygons.map((p) => p[0])
+  const props = properties ?? {}
+  return {
+    id: building.id,
+    ring: rings.flat() as [number, number][],
+    base: Number(props.min_height ?? 0),
+    height: Number(props.height ?? 0),
+  }
 }
 
 /** Hovering a club floor lights it up with a pointer cursor; clicking it calls onClick. Returns a cleanup. */
@@ -182,6 +194,8 @@ export default function GlobeView({ places, focused = false, searching = null, o
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
   const [arrivedAtGem, setArrivedAtGem] = useState(false)
+  // The club's real building once found, so its floors can get labels
+  const [club, setClub] = useState<ClubBuilding | null>(null)
   // Latest handler without re-running the fly-in effect
   const onClubFloorsClickRef = useRef(onClubFloorsClick)
   onClubFloorsClickRef.current = onClubFloorsClick
@@ -194,8 +208,10 @@ export default function GlobeView({ places, focused = false, searching = null, o
     let cleanupFloors: (() => void) | undefined
     // Wait for the zoomed-in building tiles to render before looking up the club's building
     const onIdle = () => {
-      const id = highlightBuilding(map, dark)
-      if (id != null) cleanupFloors = makeClubFloorsInteractive(map, id, (floor) => onClubFloorsClickRef.current?.(floor))
+      const found = highlightBuilding(map, dark)
+      if (!found) return
+      setClub(found)
+      cleanupFloors = makeClubFloorsInteractive(map, found.id, (floor) => onClubFloorsClickRef.current?.(floor))
     }
     const onArrive = () => {
       setArrivedAtGem(true)
@@ -206,8 +222,18 @@ export default function GlobeView({ places, focused = false, searching = null, o
       map.off('moveend', onArrive)
       map.off('idle', onIdle)
       cleanupFloors?.()
+      setClub(null)
     }
   }, [map, focused])
+
+  // Upper clay floor is the Rooftop, lower the Main Hall (same mapping as Home)
+  const floorLabels = useMemo<FloorLabel[]>(
+    () => [
+      { layerId: 'gem-floor-upper', from: 0.8, to: 1, title: 'Rooftop', subtitle: 'House & disco', side: 'left', onClick: () => onClubFloorsClickRef.current?.('upper') },
+      { layerId: 'gem-floor-lower', from: 0.6, to: 0.8, title: 'Main Hall', subtitle: 'Techno', side: 'right', onClick: () => onClubFloorsClickRef.current?.('lower') },
+    ],
+    [],
+  )
 
   // Into a floor: dive at it. Out again: back across the street.
   const wasOnFloor = useRef(false)
@@ -253,6 +279,8 @@ export default function GlobeView({ places, focused = false, searching = null, o
       {floor && onFloor && createPortal(<ImmersiveFloor floor={floor} onFloor={onFloor} onClose={() => onFloor(null)} />, document.body)}
 
       {map && places && !focused && <PlaceCards map={map} places={places} />}
+
+      {map && club && !floor && <ClubFloorLabels map={map} building={club} floors={floorLabels} />}
 
       {arrivedAtGem && <ClubDetails />}
 
