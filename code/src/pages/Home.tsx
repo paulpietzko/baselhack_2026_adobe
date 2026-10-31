@@ -31,7 +31,8 @@ export default function Home() {
       <main className="flex min-h-0 flex-1 flex-col">
         {/* With the sidebar collapsed the map sits behind this layer, so only the messages take clicks */}
         <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto sidebar-collapsed:pointer-events-none">
-          <div className="pointer-events-auto relative z-10 mx-auto w-full max-w-3xl px-6 pt-8">
+          {/* Fullscreen map: the map is the answer, so the messages step aside */}
+          <div className="pointer-events-auto relative z-10 mx-auto w-full max-w-3xl px-6 pt-8 sidebar-collapsed:hidden">
             <p className="ml-auto w-fit max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5">{query}</p>
             <p className="mt-6 flex w-fit items-center gap-2 rounded-full font-serif text-lg sidebar-collapsed:bg-bg/80 sidebar-collapsed:px-3 sidebar-collapsed:py-1 sidebar-collapsed:backdrop-blur">
               <ClaudeLogo size={20} /> {BASEL_TITLE}
