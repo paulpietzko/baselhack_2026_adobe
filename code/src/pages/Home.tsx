@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
+import GlobeView from '../components/GlobeView'
 
 const SUGGESTIONS = [
   { icon: PenLine, label: 'Write' },
@@ -16,14 +18,17 @@ const greeting = () => {
 }
 
 export default function Home() {
+  const [query, setQuery] = useState<string | null>(null)
+
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
+      {query && <GlobeView onClose={() => setQuery(null)} />}
       <h1 className="mb-8 flex items-center gap-3 font-serif text-4xl font-normal">
         <ClaudeLogo size={36} />
         {greeting()}, John Doe
       </h1>
       <div className="w-full max-w-2xl">
-        <ChatInput />
+        <ChatInput onSend={setQuery} />
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {SUGGESTIONS.map(({ icon: Icon, label }) => (
             <button

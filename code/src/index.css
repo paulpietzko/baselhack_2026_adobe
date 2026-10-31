@@ -7,6 +7,25 @@
 
   --color-clay: #d97757;
   --color-clay-dark: #c6613f;
+
+  /* Chat → globe transition */
+  --animate-globe-in: globe-in 900ms ease-out both;
+  --animate-bar-in: bar-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 400ms ease-out 300ms both;
+
+  @keyframes globe-in {
+    from { opacity: 0; transform: scale(1.08); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  /* The big chat input "shrinks" down into the compact voice bar */
+  @keyframes bar-in {
+    from { opacity: 0.4; transform: translateY(-38vh) scale(1.5); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
 /* Theme colors switch with <html data-theme="light|dark">, see hooks/useTheme.ts */
