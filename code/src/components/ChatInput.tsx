@@ -16,7 +16,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.04)] focus-within:border-[#d5d2c6]">
+    <div className="rounded-2xl border border-border bg-surface p-3 shadow-[0_4px_20px_rgba(0,0,0,0.25)] focus-within:border-border-strong">
       <textarea
         rows={2}
         value={text}
