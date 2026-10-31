@@ -77,6 +77,7 @@ export const BASEL_PLACES: Place[] = [
     icon: Building2,
     tint: '#4a2226',
     iconColor: '#e8828a',
+    image: '/club_rouge.webp',
     hidden: true,
     cardAngle: 20,
     cardDistance: 230,
@@ -95,3 +96,37 @@ export const BASEL_PLACES: Place[] = [
     cardDistance: 270,
   },
 ]
+
+/** Extra info for the hidden gem's 3D detail view (Club Rouge) */
+export const CLUB_ROUGE = {
+  id: 'club-rouge',
+  address: 'Nauenstrasse, near Basel SBB',
+  floor: 'Rooftop · 31st floor',
+  open: '22:00 – 06:00',
+  entry: 'CHF 25',
+  age: '18+',
+  genres: ['Techno', 'Hardcore', 'Hard techno'],
+  lineup: 'Halloween Special: DJ Nachtmahr b2b Kryptik',
+  dressCode: {
+    theme: 'Costume party: dark, scary or all black',
+    dos: ['Costume or all-black outfit', 'Face paint & masks welcome', 'Comfortable shoes for dancing'],
+    donts: ['Sportswear & football shirts', 'Big brand logos', 'Flip-flops'],
+    note: 'Costume = free welcome shot at the bar',
+  },
+  /** Expected crowd tonight in % of capacity, by hour */
+  crowd: [
+    { hour: '22', value: 25 },
+    { hour: '23', value: 45 },
+    { hour: '00', value: 72 },
+    { hour: '01', value: 95 },
+    { hour: '02', value: 100 },
+    { hour: '03', value: 88 },
+    { hour: '04', value: 60 },
+    { hour: '05', value: 30 },
+  ],
+  /** Index into crowd that is "now" */
+  nowIndex: 1,
+  liveCrowd: 48,
+  recommended: '23:00 – 00:00',
+  peak: '01:00 – 03:00',
+}

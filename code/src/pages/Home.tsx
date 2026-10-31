@@ -15,7 +15,7 @@ const SUGGESTIONS = [
 ]
 
 // Intents "detected" from the conversation once the hidden gem is unlocked
-const INTENTS = ['Techno', 'Hardcore', 'Late night']
+const INTENTS = ['Techno', 'Hardcore']
 
 const greeting = () => {
   const h = new Date().getHours()
@@ -28,6 +28,14 @@ export default function Home() {
   const [voice, setVoice] = useState(false)
   // Demo: pressing "a" unlocks the hidden gem (Club Rouge) on the map
   const [unlocked, setUnlocked] = useState(false)
+  // Once the pills have popped in (~1s) and a 0.5s pause, fly into the club in 3D
+  const [focused, setFocused] = useState(false)
+  useEffect(() => {
+    setFocused(false)
+    if (!unlocked) return
+    const t = setTimeout(() => setFocused(true), 1050 + 500)
+    return () => clearTimeout(t)
+  }, [unlocked])
   const ask = (text: string, viaVoice = false) => {
     setQuery(text)
     setUnlocked(false)
@@ -65,19 +73,19 @@ export default function Home() {
               <ClaudeLogo size={20} /> {BASEL_TITLE}
             </p>
           </div>
-          <GlobeView key={query} unlocked={unlocked} />
+          <GlobeView key={query} unlocked={unlocked} focused={focused} />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
           {unlocked && (
             <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="flex animate-card-in items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-semibold text-bg shadow-[0_0_24px_rgb(217_119_87/0.5)]">
+              <span className="flex animate-[pill-in_650ms_cubic-bezier(0.34,1.56,0.64,1)_both,gem-glow_1.6s_ease-in-out_650ms_3] items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-semibold text-bg shadow-[0_0_16px_rgb(217_119_87/0.35)]">
                 <Sparkles size={13} /> Hidden gem unlocked
               </span>
               {INTENTS.map((intent, i) => (
                 <span
                   key={intent}
-                  className="animate-card-in rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur"
-                  style={{ animationDelay: `${150 + i * 100}ms` }}
+                  className="animate-pill-in rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur"
+                  style={{ animationDelay: `${250 + i * 150}ms` }}
                 >
                   {intent}
                 </span>

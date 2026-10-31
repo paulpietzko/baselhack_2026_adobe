@@ -3,22 +3,106 @@ import mapboxgl from 'mapbox-gl'
 import { MapPin } from 'lucide-react'
 import Globe from './Globe'
 import PlaceCards from './PlaceCards'
-import { BASEL_CAMERA, BASEL_PLACES } from '../data/basel'
+import ClubDetails from './ClubDetails'
+import { BASEL_CAMERA, BASEL_PLACES, CLUB_ROUGE } from '../data/basel'
 
 // How long the globe spins before we fly to the destination
 const GLOBE_INTRO_MS = 500
 const FLY_DURATION_MS = 2500
 
 const VISIBLE_PLACES = BASEL_PLACES.filter((p) => !p.hidden)
+const GEM = BASEL_PLACES.find((p) => p.id === CLUB_ROUGE.id)!
+const GEM_COLOR = '#d97757' // clay
+const BUILDING_RISE_MS = 900
+
+/** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
+function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
+  if (m.getLayer('3d-buildings')) return
+  const labelLayerId = m.getStyle()?.layers?.find((l) => l.type === 'symbol' && l.layout && 'text-field' in l.layout)?.id
+  m.addLayer(
+    {
+      id: '3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', 'extrude', 'true'],
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': dark ? '#3a3a3c' : '#d6d3cc',
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
+        'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']],
+        'fill-extrusion-opacity': 0.75,
+      },
+    },
+    labelLayerId,
+  )
+}
+
+/** Find the building under the gem and extrude it in clay, rising out of the ground */
+function highlightBuilding(m: mapboxgl.Map) {
+  const p = m.project(GEM.lngLat)
+  // Widen the search until we hit a building (the pin may sit on a street)
+  let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
+  for (const r of [8, 24, 48]) {
+    building = m.queryRenderedFeatures([[p.x - r, p.y - r], [p.x + r, p.y + r]], { layers: ['3d-buildings'] })[0]
+    if (building) break
+  }
+  if (!building || building.id == null || m.getLayer('gem-building')) return
+  m.addLayer({
+    id: 'gem-building',
+    type: 'fill-extrusion',
+    source: 'composite',
+    'source-layer': 'building',
+    filter: ['==', ['id'], building.id],
+    paint: {
+      'fill-extrusion-color': GEM_COLOR,
+      'fill-extrusion-height': 0,
+      'fill-extrusion-base': ['get', 'min_height'],
+      'fill-extrusion-opacity': 0.95,
+    },
+  })
+  const start = performance.now()
+  const step = (now: number) => {
+    if (!m.getLayer('gem-building')) return
+    const t = Math.min((now - start) / BUILDING_RISE_MS, 1)
+    const eased = 1 - Math.pow(1 - t, 3)
+    // A little taller than real at the end, so the club stands out
+    m.setPaintProperty('gem-building', 'fill-extrusion-height', ['*', ['get', 'height'], eased * 1.15])
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
 
 /**
  * Globe embedded in a Claude answer: spins, flies to Basel, shows places. No frame, like a Vision Pro persona:
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ unlocked = false }: { unlocked?: boolean }) {
+export default function GlobeView({ unlocked = false, focused = false }: {
+  unlocked?: boolean
+  /** Zoom into the hidden gem in 3D and show its detail cards */
+  focused?: boolean
+}) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
+  const [arrivedAtGem, setArrivedAtGem] = useState(false)
+
+  useEffect(() => {
+    if (!map || !focused) return
+    add3dBuildings(map, document.documentElement.dataset.theme !== 'light')
+    map.flyTo({ center: GEM.lngLat, zoom: 17.2, pitch: 60, bearing: -25, duration: 3000, essential: true })
+    // Wait for the zoomed-in building tiles to render before looking up the club's building
+    const onIdle = () => highlightBuilding(map)
+    const onArrive = () => {
+      setArrivedAtGem(true)
+      map.once('idle', onIdle)
+    }
+    map.once('moveend', onArrive)
+    return () => {
+      map.off('moveend', onArrive)
+      map.off('idle', onIdle)
+    }
+  }, [map, focused])
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
@@ -39,11 +123,13 @@ export default function GlobeView({ unlocked = false }: { unlocked?: boolean }) 
         <Globe className="size-full" onLoad={handleLoad} />
       </div>
 
-      {map && <PlaceCards map={map} places={unlocked ? BASEL_PLACES : VISIBLE_PLACES} />}
+      {map && !focused && <PlaceCards map={map} places={unlocked ? BASEL_PLACES : VISIBLE_PLACES} />}
+
+      {arrivedAtGem && <ClubDetails />}
 
       {map && (
-        <span className="absolute top-3 left-1/2 sidebar-collapsed:top-16 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
-          <MapPin size={14} className="text-clay" /> Basel, Switzerland
+        <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
+          <MapPin size={14} className="text-clay" /> {arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
         </span>
       )}
     </div>

@@ -53,6 +53,24 @@
     from { opacity: 0; transform: translateY(10px) scale(0.96); }
     to { opacity: 1; transform: none; }
   }
+  /* Intent pills above the input: pop up from below with a little overshoot, unblurring */
+  --animate-pill-in: pill-in 650ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes pill-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.6); filter: blur(6px); }
+    60% { opacity: 1; filter: blur(0); }
+    to { opacity: 1; transform: none; filter: blur(0); }
+  }
+  /* "Hidden gem unlocked": glow pulses a few times once it has landed (used with pill-in in Home.tsx) */
+  /* Crowd chart bars in the club detail view */
+  @keyframes grow-up {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+  @keyframes gem-glow {
+    0%, 100% { box-shadow: 0 0 16px rgb(217 119 87 / 0.35); }
+    50% { box-shadow: 0 0 32px 4px rgb(217 119 87 / 0.75); }
+  }
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
