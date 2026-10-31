@@ -23,3 +23,5 @@ Run the app.
 ```Code
 npm run dev
 ```
+
+Open [localhost:8443](http://localhost:8443/)

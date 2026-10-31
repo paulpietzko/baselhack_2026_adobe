@@ -1,20 +1,19 @@
-import { NavLink, Route, Routes } from 'react-router'
+import { Route, Routes, useLocation } from 'react-router'
+import Sidebar from './components/Sidebar'
+import Chat from './pages/Chat'
 import Home from './pages/Home'
 import Scene from './pages/Scene'
 
 export default function App() {
+  // Remount the chat on every navigation so its local state resets
+  const { key } = useLocation()
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <nav className="flex gap-4 border-b border-gray-200 px-6 py-3">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? 'font-semibold' : 'text-gray-500')}>
-          Home
-        </NavLink>
-        <NavLink to="/scene" className={({ isActive }) => (isActive ? 'font-semibold' : 'text-gray-500')}>
-          Scene
-        </NavLink>
-      </nav>
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/chat/:id" element={<Chat key={key} />} />
         <Route path="/scene" element={<Scene />} />
       </Routes>
     </div>
