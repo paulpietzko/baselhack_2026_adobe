@@ -22,12 +22,14 @@ const interimFor = (line: string): [number, string][] =>
 
 const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-export default function ChatInput({ onSend, placeholder = 'How can I help you today?', voiceLine, rows = 2 }: {
+export default function ChatInput({ onSend, placeholder = 'How can I help you today?', voiceLine, rows = 2, compact = false }: {
   onSend?: (text: string) => void
   placeholder?: string
   /** What the mock microphone "hears" */
   voiceLine?: string
   rows?: number
+  /** One line, no extras: for when the screen belongs to something else */
+  compact?: boolean
 }) {
   const transcript = voiceLine ?? MOCK_TRANSCRIPT
   const interimLines = voiceLine ? interimFor(voiceLine) : MOCK_INTERIM
@@ -77,7 +79,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
   return (
     <div>
       <div
-        className={`rounded-2xl border bg-surface p-3 shadow-[0_4px_20px_rgba(0,0,0,0.25)] ${
+        className={`relative rounded-2xl border bg-surface p-3 shadow-[0_4px_20px_rgba(0,0,0,0.25)] ${
           listening ? 'border-clay ring-4 ring-clay/15' : 'border-border focus-within:border-border-strong'
         }`}
       >
@@ -93,7 +95,7 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
               send()
             }
           }}
-          className={`w-full resize-none bg-transparent px-1 outline-none transition-colors duration-300 placeholder:text-muted ${
+          className={`block w-full resize-none bg-transparent px-1 outline-none ${compact ? 'pr-24 text-[15px]' : ''} transition-colors duration-300 placeholder:text-muted ${
             listening && text !== transcript ? 'text-muted' : ''
           }`}
         />
@@ -118,9 +120,13 @@ export default function ChatInput({ onSend, placeholder = 'How can I help you to
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <button className={iconBtn}><Plus size={16} /></button>
-            <button className={iconBtn}><SlidersHorizontal size={15} /></button>
+          <div className={`flex items-center gap-2 ${compact ? 'absolute top-1/2 right-2.5 -translate-y-1/2' : ''}`}>
+            {!compact && (
+              <>
+                <button className={iconBtn}><Plus size={16} /></button>
+                <button className={iconBtn}><SlidersHorizontal size={15} /></button>
+              </>
+            )}
             <button
               aria-label="Voice input"
               onClick={startListening}

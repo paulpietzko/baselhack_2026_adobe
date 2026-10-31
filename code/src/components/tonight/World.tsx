@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { AdditiveBlending, BackSide, BufferGeometry, DoubleSide, Float32BufferAttribute, MathUtils, type Group, type Mesh, type Points } from 'three'
+import { BackSide, DoubleSide, MathUtils, type Group, type Mesh } from 'three'
 import { H, canvasTexture } from '../acme/Venue'
-import { COLORS, CREW, floorById, type ColorId, type FloorId, type OutfitId } from '../../data/tonight'
+import { COLORS, CREW_TONES, floorById, type ColorId, type FloorId, type OutfitId } from '../../data/tonight'
 
 type Vec3 = [number, number, number]
 
@@ -114,29 +114,13 @@ function Witch({ color }: { color: string }) {
   )
 }
 
-/** A crew member. Plain in their own colour until the group settles on a look, then dressed in it. */
-function Figure({ name, initials, tone, outfit, accent }: { name: string; initials: string; tone: string; outfit: OutfitId | null; accent: string }) {
+/** One of the four. Plain in their own colour until a look is picked, then dressed in it. */
+function Figure({ tone, outfit, accent }: { tone: string; outfit: OutfitId | null; accent: string }) {
   const skin = outfit === 'skeleton' ? BLACK : '#e4c4ae'
   const cloth = outfit ? BLACK : tone
-  const label = useMemo(
-    () =>
-      canvasTexture(128, 128, (g) => {
-        g.fillStyle = tone
-        g.beginPath()
-        g.arc(64, 64, 58, 0, Math.PI * 2)
-        g.fill()
-        g.font = '600 52px -apple-system, Inter, sans-serif'
-        g.textAlign = 'center'
-        g.textBaseline = 'middle'
-        g.fillStyle = '#fff'
-        g.fillText(initials, 64, 68)
-      }),
-    [tone, initials],
-  )
-  useEffect(() => () => label.dispose(), [label])
 
   return (
-    <group name={name}>
+    <group>
       {outfit !== 'witch' && (
         <>
           <Limb at={[-0.1, 0.42, 0]} color={cloth} />
@@ -150,6 +134,12 @@ function Figure({ name, initials, tone, outfit, accent }: { name: string; initia
         <sphereGeometry args={[0.13, 20, 16]} />
         <meshStandardMaterial color={skin} roughness={0.6} />
       </mesh>
+      {outfit !== 'skeleton' && (
+        <mesh position={[0, 1.57, -0.025]} scale={[1.04, 0.95, 1.02]}>
+          <sphereGeometry args={[0.13, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
+          <meshStandardMaterial color="#1a1418" roughness={0.5} />
+        </mesh>
+      )}
       {/* Tonight is masked, so every look gets one */}
       {outfit && (
         <mesh position={[0, 1.55, 0.09]} scale={[0.98, 0.3, 0.42]}>
@@ -160,16 +150,13 @@ function Figure({ name, initials, tone, outfit, accent }: { name: string; initia
       {outfit === 'vampire' && <Cape color={accent} />}
       {outfit === 'skeleton' && <Bones />}
       {outfit === 'witch' && <Witch color={accent} />}
-      <sprite position-y={2.18} scale={[0.34, 0.34, 1]} renderOrder={10}>
-        <spriteMaterial map={label} depthTest={false} transparent />
-      </sprite>
     </group>
   )
 }
 
 /**
- * The crew stands inside the world with you: they ride up to the floor you pick, wear what you pick,
- * and turn up at the casino door. The first figure (you) turns slowly while you're choosing a look.
+ * The group stands inside the world: they ride up to the floor you pick, wear what you pick,
+ * and turn up at the casino door. The first figure turns slowly while a look is being chosen.
  */
 export function CrewFigures({ show, floor, atCasino, outfit, color, turntable }: {
   show: boolean
@@ -192,7 +179,7 @@ export function CrewFigures({ show, floor, atCasino, outfit, color, turntable }:
     root.current.visible = scale > 0.01
     members.current.forEach((g, i) => {
       const beat = clock.elapsedTime * 4 + i * 1.3
-      const tx = x + (i - (CREW.length - 1) / 2) * SPACING
+      const tx = x + (i - (CREW_TONES.length - 1) / 2) * SPACING
       g.position.x = MathUtils.damp(g.position.x, tx, 3, dt)
       g.position.z = MathUtils.damp(g.position.z, z + (i % 2) * 0.28, 3, dt)
       // Bobbing to the music, except for the elevator ride
@@ -204,23 +191,24 @@ export function CrewFigures({ show, floor, atCasino, outfit, color, turntable }:
 
   return (
     <group ref={root} scale={0.001}>
-      {CREW.map((c, i) => (
+      {CREW_TONES.map((tone, i) => (
         <group
-          key={c.id}
+          key={tone}
           ref={(g) => {
             if (g) members.current[i] = g
           }}
         >
-          <Figure name={c.name} initials={c.initials} tone={c.color} outfit={outfit} accent={accent} />
+          <Figure tone={tone} outfit={outfit} accent={accent} />
         </group>
       ))}
       {/* A soft key light, or the look gets lost in the dark of the club */}
-      {turntable && <pointLight position={[x + 1.2, y + 2.1, z + 2.2]} intensity={14} distance={8} color="#fff1e0" />}
+      {turntable && <pointLight position={[x + 0.8, y + 2.2, z + 2.4]} intensity={20} distance={9} color="#fff1e0" />}
     </group>
   )
 }
 
 const POCKETS = 24
+const WHEEL_SPEED = 0.25
 
 function wheelTexture() {
   return canvasTexture(1024, 1024, (g) => {
@@ -275,12 +263,11 @@ const CHIPS: [number, number, number, string][] = [
   [2.2, 4.6, 6, '#0e8a4f'],
 ]
 
-/** The casino rises from its pin as a giant roulette table. `spinning` is the wheel that picks who pays. */
-export function Casino({ show, spinning }: { show: boolean; spinning: boolean }) {
+/** The casino rises from its pin as a giant roulette table */
+export function Casino({ show }: { show: boolean }) {
   const root = useRef<Group>(null!)
   const wheel = useRef<Mesh>(null!)
   const ball = useRef<Group>(null!)
-  const speed = useRef(0.25)
   const wheelMap = useMemo(wheelTexture, [])
   const sign = useMemo(signTexture, [])
   useEffect(
@@ -295,9 +282,8 @@ export function Casino({ show, spinning }: { show: boolean; spinning: boolean })
     const s = MathUtils.damp(root.current.scale.y, show ? 1 : 0.001, 3.5, dt)
     root.current.scale.set(Math.min(1, s * 1.4), s, Math.min(1, s * 1.4))
     root.current.visible = s > 0.01
-    speed.current = MathUtils.damp(speed.current, spinning ? 9 : 0.25, spinning ? 4 : 1.4, dt)
-    wheel.current.rotation.z += speed.current * dt
-    ball.current.rotation.y -= speed.current * 1.6 * dt
+    wheel.current.rotation.z += WHEEL_SPEED * dt
+    ball.current.rotation.y -= WHEEL_SPEED * 1.6 * dt
   })
 
   return (
@@ -366,29 +352,64 @@ export function Casino({ show, spinning }: { show: boolean; spinning: boolean })
   )
 }
 
-const EMBERS = 170
-const FIELD = 26
+const storeSign = (name: string) =>
+  canvasTexture(1024, 200, (g) => {
+    g.font = '600 104px Georgia, serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.shadowColor = '#ffd9a0'
+    g.shadowBlur = 26
+    g.fillStyle = '#fff1dc'
+    g.fillText(name, 512, 104)
+  })
 
-/** Embers drifting up through the whole night, map and venue alike */
-export function Embers() {
-  const ref = useRef<Points>(null!)
-  const geometry = useMemo(() => {
-    const pos: number[] = []
-    for (let i = 0; i < EMBERS; i++) pos.push((Math.random() - 0.5) * FIELD, Math.random() * FIELD, (Math.random() - 0.5) * FIELD)
-    return new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pos, 3))
-  }, [])
-  useFrame(({ clock }, dt) => {
-    const a = geometry.attributes.position
-    for (let i = 0; i < EMBERS; i++) {
-      const y = a.getY(i) + dt * (0.3 + (i % 5) * 0.12)
-      a.setY(i, y > FIELD ? 0 : y)
-      a.setX(i, a.getX(i) + Math.sin(clock.elapsedTime * 0.6 + i) * dt * 0.12)
-    }
-    a.needsUpdate = true
+/** The store on its street: a lit shop window and a sign. It stays a storefront, you don't go in. */
+export function Storefront({ name, show }: { name: string; show: boolean }) {
+  const root = useRef<Group>(null!)
+  const sign = useMemo(() => storeSign(name), [name])
+  useEffect(() => () => sign.dispose(), [sign])
+  useFrame((_, dt) => {
+    const s = MathUtils.damp(root.current.scale.y, show ? 1 : 0.001, 4, dt)
+    root.current.scale.set(1, s, 1)
+    root.current.visible = s > 0.01
   })
   return (
-    <points ref={ref} geometry={geometry}>
-      <pointsMaterial size={0.09} color="#ff9a4a" transparent opacity={0.85} blending={AdditiveBlending} depthWrite={false} />
-    </points>
+    <group ref={root} scale-y={0.001}>
+      <mesh position-y={2.2} castShadow>
+        <boxGeometry args={[8, 4.4, 5]} />
+        <meshStandardMaterial color="#2e2a34" roughness={0.75} />
+      </mesh>
+      {/* Shop window, with the door beside it */}
+      <mesh position={[-0.9, 1.3, 2.52]}>
+        <planeGeometry args={[5.4, 2.1]} />
+        <meshBasicMaterial color="#d99a55" toneMapped={false} />
+      </mesh>
+      <mesh position={[2.9, 1.15, 2.52]}>
+        <planeGeometry args={[1.2, 2.3]} />
+        <meshBasicMaterial color="#8a5a30" toneMapped={false} />
+      </mesh>
+      {/* Three mannequins, one for each article */}
+      {[-2.7, -0.9, 0.9].map((x) => (
+        <group key={x} position={[x, 0.3, 2.56]}>
+          <mesh position-y={0.82}>
+            <capsuleGeometry args={[0.24, 0.85, 4, 12]} />
+            <meshStandardMaterial color={BLACK} />
+          </mesh>
+          <mesh position-y={1.62}>
+            <sphereGeometry args={[0.17, 14, 10]} />
+            <meshStandardMaterial color={BLACK} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 2.62, 2.95]} rotation-x={0.5}>
+        <boxGeometry args={[8.2, 0.06, 1]} />
+        <meshStandardMaterial color="#c6613f" emissive="#c6613f" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[0, 3.6, 2.54]}>
+        <planeGeometry args={[6.4, 1.25]} />
+        <meshBasicMaterial map={sign} transparent toneMapped={false} depthWrite={false} />
+      </mesh>
+      <pointLight position={[0, 2, 6]} intensity={40} distance={18} color="#ffc680" />
+    </group>
   )
 }

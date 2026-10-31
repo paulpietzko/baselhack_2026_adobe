@@ -452,7 +452,7 @@ function Furniture({ room }: { room: Room }) {
         <>
           <group position={[cx, 0, cz + 0.45]}>
             <Dancefloor />
-            <group position-y={1.85}>
+            <group position-y={2.08}>
               <DiscoBall />
             </group>
           </group>

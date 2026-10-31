@@ -1,4 +1,4 @@
-import { Building2, Dices, Ghost, Landmark, Martini, PawPrint, Shirt, Waves, type LucideIcon } from 'lucide-react'
+import { Building2, Dices, Ghost, Landmark, Martini, Shirt, Waves, type LucideIcon } from 'lucide-react'
 
 export type Place = {
   id: string
@@ -16,6 +16,8 @@ export type Place = {
   cardAngle: number
   cardDistance: number
   image?: string
+  /** Published by the owner through Acme */
+  verified?: boolean
 }
 
 export const BASEL_TITLE = 'A few places for your day in Basel'
@@ -26,12 +28,16 @@ export const BASEL_CAMERA = { center: [7.5848, 47.5554] as [number, number], zoo
 export type Camera = { center: [number, number]; zoom: number; pitch: number; bearing: number; duration: number; offset?: [number, number] }
 
 /** Map camera per stage of the evening. offset keeps the pin low on screen, so the 3D model can stand on it. */
-export const CAMERAS: Record<'day' | 'party' | 'venue' | 'casino' | 'plan', Camera> = {
+export const CAMERAS: Record<'day' | 'party' | 'venue' | 'rooftop' | 'shops' | 'store' | 'casino' | 'plan', Camera> = {
   day: { ...BASEL_CAMERA, pitch: 0, bearing: 0, duration: 2500 },
-  party: { center: [7.588, 47.569], zoom: 13.05, pitch: 45, bearing: -12, duration: 2200 },
-  venue: { center: [7.5925, 47.5835], zoom: 17.6, pitch: 62, bearing: 24, duration: 2600, offset: [0, 130] },
-  casino: { center: [7.5615, 47.577], zoom: 17.2, pitch: 60, bearing: -32, duration: 3400, offset: [0, 130] },
-  plan: { center: [7.578, 47.571], zoom: 13.1, pitch: 40, bearing: -8, duration: 2600, offset: [-90, -50] },
+  party: { center: [7.588, 47.569], zoom: 13.2, pitch: 58, bearing: -14, duration: 2600 },
+  venue: { center: [7.5925, 47.5835], zoom: 16.9, pitch: 70, bearing: 24, duration: 3000, offset: [-120, 170] },
+  rooftop: { center: [7.5925, 47.5835], zoom: 15.6, pitch: 82, bearing: 175, duration: 2200 },
+  shops: { center: [7.592, 47.568], zoom: 13.7, pitch: 58, bearing: -10, duration: 2600 },
+  // Its center is replaced by the store being visited
+  store: { center: [7.5838, 47.5575], zoom: 17.5, pitch: 68, bearing: 20, duration: 2600, offset: [-120, 170] },
+  casino: { center: [7.5615, 47.577], zoom: 16.9, pitch: 70, bearing: -32, duration: 3600, offset: [-120, 170] },
+  plan: { center: [7.578, 47.571], zoom: 13.2, pitch: 52, bearing: -8, duration: 3000, offset: [-190, -40] },
 }
 
 // First answer to "what can I do in Basel?": a nice day, wrong mood
@@ -72,27 +78,15 @@ export const BASEL_DAY_PLACES: Place[] = [
     icon: Building2,
     tint: '#4a3222',
     iconColor: '#e8a571',
-    cardAngle: 190,
-    cardDistance: 150,
-  },
-  {
-    id: 'zoo',
-    name: 'Zoo Basel',
-    time: 'Today · until 17:30',
-    tag: 'Family',
-    description: 'The Zolli, Switzerland’s oldest zoo.',
-    lngLat: [7.5786, 47.5477],
-    icon: PawPrint,
-    tint: '#23402c',
-    iconColor: '#86d29a',
-    cardAngle: 180,
-    cardDistance: 120,
+    cardAngle: 195,
+    cardDistance: 200,
   },
 ]
 
 // The club from the vendor portal: it published its building, so it's the one the crew can walk into
 export const HAFENLICHT_PLACE: Place = {
-  id: 'hafenlicht',
+  id: 'acme/hafenlicht',
+  verified: true,
   name: 'Hafenlicht',
   time: 'Tonight · 23:00',
   tag: 'Masked · Rooftop club',
@@ -129,8 +123,27 @@ export const pickupPlace = (name: string, lngLat: [number, number]): Place => ({
   icon: Shirt,
   tint: '#3a2433',
   iconColor: '#e09ac4',
-  cardAngle: 175,
+  cardAngle: -90,
   cardDistance: 170,
+})
+
+const SHOP_LOOKS: Record<string, { tint: string; iconColor: string; cardAngle: number }> = {
+  maskenkammer: { tint: '#3a2433', iconColor: '#e09ac4', cardAngle: 180 },
+  fundus: { tint: '#2c2840', iconColor: '#a99ff0', cardAngle: -90 },
+  atelier: { tint: '#403218', iconColor: '#f0c050', cardAngle: 0 },
+}
+
+/** A store as a map card, the same way the club appears in discovery */
+export const storePlace = (shop: { id: string; name: string; kind: string; stock: string; lngLat: [number, number] }, price: number): Place => ({
+  id: shop.id,
+  name: shop.name,
+  time: `CHF ${price}`,
+  tag: shop.stock,
+  description: shop.kind,
+  lngLat: shop.lngLat,
+  icon: Shirt,
+  cardDistance: 190,
+  ...SHOP_LOOKS[shop.id],
 })
 
 // Hafenlicht to the casino, over the Dreirosen bridge
@@ -163,7 +176,7 @@ export const BASEL_PLACES: Place[] = [
     icon: Martini,
     tint: '#3a2433',
     iconColor: '#e09ac4',
-    cardAngle: 20,
+    cardAngle: -100,
     cardDistance: 170,
   },
   {

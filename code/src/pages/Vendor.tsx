@@ -173,7 +173,14 @@ export default function Vendor() {
           {stage === 'studio' && (
             <>
               <Progress value={complete} />
-              <button onClick={() => setPublished(true)} className={`${cta} h-8 px-4 text-sm`}>
+              <button
+                onClick={() =>
+                  fetch('/api/business', { method: 'POST', body: JSON.stringify({ profile, floors }) })
+                    .then((res) => (res.ok ? setPublished(true) : console.error('Publish failed', res.status)))
+                    .catch(console.error)
+                }
+                className={`${cta} h-8 px-4 text-sm`}
+              >
                 Publish
               </button>
             </>

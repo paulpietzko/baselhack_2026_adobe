@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "test": "node --test \"engine/**/*.test.ts\" \"server/**/*.test.ts\""
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.2",

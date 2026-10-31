@@ -27,12 +27,6 @@ export default function Sidebar() {
       localStorage.setItem('sidebar', collapsed ? 'collapsed' : 'open')
     } catch {}
   }, [collapsed])
-  // Immersive views ask for the whole screen; the toggle still brings the sidebar back
-  useEffect(() => {
-    const collapse = () => setCollapsed(true)
-    window.addEventListener('sidebar:collapse', collapse)
-    return () => window.removeEventListener('sidebar:collapse', collapse)
-  }, [])
   const open = !collapsed
 
   return (

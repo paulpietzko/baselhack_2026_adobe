@@ -3,7 +3,6 @@ import { useLocation } from 'react-router'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
-import { CrewStack } from '../components/tonight/Crew'
 import Journey from '../components/tonight/Journey'
 
 const SUGGESTIONS = [
@@ -36,9 +35,6 @@ export default function Home() {
       </h1>
       <div className="w-full max-w-2xl">
         <ChatInput onSend={setQuery} />
-        <p className="mt-4 flex items-center justify-center gap-2 text-sm text-muted">
-          <CrewStack /> Mia, Leo and Noa are in this chat
-        </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {SUGGESTIONS.map(({ icon: Icon, label }) => (
             <button

@@ -8,19 +8,24 @@ const TOKEN = import.meta.env.VITE_MAPBOX_KEY as string | undefined
 const SECONDS_PER_REVOLUTION = 120
 const MAX_SPIN_ZOOM = 5
 const SLOW_SPIN_ZOOM = 3
+const DUSK_MS = 1100
 
 /**
  * Spinning Mapbox globe. Calls onLoad once the map is ready, with a function that
  * stops the spin for good (call it before your own flyTo, or the spin fights it).
  */
-export default function Globe({ className = '', controls = false, onLoad }: {
+export default function Globe({ className = '', controls = false, lightPreset, onLoad }: {
   className?: string
   controls?: boolean
+  /** Use Mapbox's 3D city with this time of day, instead of the flat style that follows the theme */
+  lightPreset?: 'day' | 'night'
   onLoad?: (map: mapboxgl.Map, stopSpin: () => void) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
   const onLoadRef = useRef(onLoad)
   onLoadRef.current = onLoad
+  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const city = useRef(lightPreset)
 
   useEffect(() => {
     if (!container.current || !TOKEN) return
@@ -30,7 +35,8 @@ export default function Globe({ className = '', controls = false, onLoad }: {
 
     const map = new mapboxgl.Map({
       container: container.current,
-      style: dark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
+      style: city.current ? 'mapbox://styles/mapbox/standard' : dark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
+      ...(city.current && { config: { basemap: { lightPreset: city.current, showPointOfInterestLabels: false, showTransitLabels: false } } }),
       projection: 'globe',
       zoom: 2,
       center: [0, 20],
@@ -59,7 +65,9 @@ export default function Globe({ className = '', controls = false, onLoad }: {
       spinGlobe()
     }
 
+    mapRef.current = map
     map.on('style.load', () => {
+      if (city.current) return
       map.setFog(
         dark
           ? {
@@ -97,6 +105,17 @@ export default function Globe({ className = '', controls = false, onLoad }: {
       map.remove()
     }
   }, [controls])
+
+  // Night falls in two steps, through dusk, so the city visibly changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !lightPreset || !map.isStyleLoaded() || lightPreset === city.current) return
+    city.current = lightPreset
+    if (lightPreset === 'day') return void map.setConfigProperty('basemap', 'lightPreset', 'day')
+    map.setConfigProperty('basemap', 'lightPreset', 'dusk')
+    const t = setTimeout(() => map.setConfigProperty('basemap', 'lightPreset', 'night'), DUSK_MS)
+    return () => clearTimeout(t)
+  }, [lightPreset])
 
   if (!TOKEN) {
     return (
