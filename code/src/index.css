@@ -5,22 +5,49 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Source Serif 4', ui-serif, Georgia, serif;
 
-  /* Dark theme */
-  --color-bg: #1f1e1d;
-  --color-surface: #30302e;
-  --color-hover: #3a3936;
-  --color-bubble: #2a2927;
-  --color-border: #3d3d3a;
-  --color-border-strong: #57564f;
-  --color-ink: #faf9f5;
-  --color-muted: #a6a39b;
   --color-clay: #d97757;
   --color-clay-dark: #c6613f;
 }
 
+/* Theme colors switch with <html data-theme="light|dark">, see hooks/useTheme.ts */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
+  --color-bubble: var(--bubble);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+}
+
 @layer base {
-  :root {
+  :root,
+  [data-theme='dark'] {
     color-scheme: dark;
+    --bg: #1f1e1d;
+    --sidebar: #1a1918;
+    --surface: #30302e;
+    --hover: #3a3936;
+    --bubble: #2a2927;
+    --border: #3d3d3a;
+    --border-strong: #57564f;
+    --ink: #faf9f5;
+    --muted: #a6a39b;
+  }
+
+  [data-theme='light'] {
+    color-scheme: light;
+    --bg: #faf9f5;
+    --sidebar: #f5f4ed;
+    --surface: #ffffff;
+    --hover: #ebe9df;
+    --bubble: #f0eee6;
+    --border: #e8e6dc;
+    --border-strong: #d5d2c6;
+    --ink: #141413;
+    --muted: #73726c;
   }
 
   body {

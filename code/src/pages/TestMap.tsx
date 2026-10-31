@@ -74,5 +74,5 @@ export default function TestMap() {
     )
   }
 
-  return <main ref={container} className="relative h-screen flex-1" />
+  return <main ref={container} className="relative min-h-0 flex-1" />
 }
