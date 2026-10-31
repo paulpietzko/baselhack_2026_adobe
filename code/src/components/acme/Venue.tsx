@@ -32,7 +32,7 @@ export const LIGHTS = { pink: '#ff2d55', blue: '#0a84ff', purple: '#bf5af2', ora
 export type Light = keyof typeof LIGHTS
 
 const LEVELS = 5 // levels 1–2 belong to other tenants, the club has the ground floor, level 3 and the roof
-const H = 2.6 // floor-to-floor height
+export const H = 2.6 // floor-to-floor height
 const INNER = 2.35 // clear height below the next slab
 
 type Vec3 = [number, number, number]
@@ -57,7 +57,7 @@ const HIGHLIGHT = new Color('#0071e3')
 
 // ─── Textures ────────────────────────────────────────────────────────────────
 
-function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+export function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
@@ -452,7 +452,7 @@ function Furniture({ room }: { room: Room }) {
         <>
           <group position={[cx, 0, cz + 0.45]}>
             <Dancefloor />
-            <group position-y={1.85}>
+            <group position-y={2.08}>
               <DiscoBall />
             </group>
           </group>
@@ -773,7 +773,7 @@ function Env() {
   return null
 }
 
-type Framing = { target: Vec3; distance: number; polar: number; azimuth?: number }
+export type Framing = { target: Vec3; distance: number; polar: number; azimuth?: number }
 
 /** Orbit by drag and glide to a new framing (keeping the compass direction unless given) */
 function Camera({ target, distance, polar, azimuth, enabled }: Framing & { enabled: boolean }) {
@@ -850,9 +850,15 @@ type Props = BuildingProps & {
   progress: number
   party: boolean
   light: Light
+  /** Overrides the built-in building → floor → room camera */
+  framing?: Framing
+  /** The point globe the scan starts from; off when the building is embedded elsewhere */
+  scanGlobe?: boolean
+  /** Extra 3D content in the same world */
+  children?: ReactNode
 }
 
-function World({ progress, party, light, tip, ...building }: Props & { tip: Tip }) {
+function World({ progress, party, light, tip, framing: override, scanGlobe = true, children, ...building }: Props & { tip: Tip }) {
   const ctx = useMemo(() => ({ progress, tip }), [progress, tip])
   const floor = building.floors.find((f) => f.id === building.open)
   const room = floor && building.room !== null ? floor.rooms[building.room] : undefined
@@ -869,11 +875,12 @@ function World({ progress, party, light, tip, ...building }: Props & { tip: Tip 
       <Env />
       <Lights party={party} light={light} />
       <Camera
-        {...framing}
+        {...(override ?? framing)}
         enabled={building.interactive}
       />
-      <Globe show={progress < 0.06} />
+      {scanGlobe && <Globe show={progress < 0.06} />}
       <Building {...building} />
+      {children}
     </Ctx.Provider>
   )
 }

@@ -5,6 +5,7 @@ import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
 import GlobeView from '../components/GlobeView'
 import { BASEL_PLACES, BASEL_TITLE } from '../data/basel'
+import type { FloorId } from '../data/floors'
 import { searchPlaces, type Answer } from '../data/search'
 
 const SUGGESTIONS = [
@@ -27,12 +28,15 @@ export default function Home() {
   const [query, setQuery] = useState<string | null>(null)
   // Asked with the presentation mock: keep the conversation in the voice bar ("Ask a follow-up…")
   const [voice, setVoice] = useState(false)
-  // Demo: pressing "a" unlocks the hidden gem (Club Rouge) on the map
+  // Demo: pressing "a" unlocks the hidden gem (Hafenlicht) on the map
   const [unlocked, setUnlocked] = useState(false)
   // Once the pills have popped in (~1s) and a 0.5s pause, fly into the club in 3D
   const [focused, setFocused] = useState(false)
+  // Clicked one of Hafenlicht's floors on the map: standing on it, in the immersive view
+  const [floor, setFloor] = useState<FloorId | null>(null)
   useEffect(() => {
     setFocused(false)
+    setFloor(null)
     if (!unlocked) return
     const t = setTimeout(() => setFocused(true), 1050 + 500)
     return () => clearTimeout(t)
@@ -55,6 +59,7 @@ export default function Home() {
   const { key } = useLocation()
   useEffect(() => {
     setQuery(null)
+    setFloor(null)
     setVoice(false)
     setUnlocked(false)
   }, [key])
@@ -92,8 +97,9 @@ export default function Home() {
   if (query) {
     return (
       <main className="flex min-h-0 flex-1 flex-col">
-        {/* With the sidebar collapsed the map sits behind this layer, so only the messages take clicks */}
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto sidebar-collapsed:pointer-events-none">
+        {/* With the sidebar collapsed the map sits behind this layer, so only the messages take clicks.
+            On a floor it drops its stacking context, so the map can go fullscreen above the chat. */}
+        <div className={`relative ${floor ? '' : 'z-10'} flex min-h-0 flex-1 flex-col overflow-y-auto sidebar-collapsed:pointer-events-none`}>
           {/* Fullscreen map: the map is the answer, so the messages step aside */}
           <div className="pointer-events-auto relative z-10 mx-auto w-full max-w-3xl px-6 pt-8 sidebar-collapsed:hidden">
             <p className="ml-auto w-fit max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5">{query}</p>
@@ -106,7 +112,16 @@ export default function Home() {
             {answer?.intro && <p className="mt-1 ml-7 text-sm text-muted">{answer.intro}</p>}
             {failed && <p className="mt-1 ml-7 text-xs text-clay">Live search unavailable, showing demo picks.</p>}
           </div>
-          <GlobeView key={query} places={places} focused={focused} searching={answer ? null : (step ?? '')} />
+          <GlobeView
+            key={query}
+            places={places}
+            focused={focused}
+            searching={answer ? null : (step ?? '')}
+            // The building's lower clay floor is the Main Hall, the upper one the Rooftop
+            onClubFloorsClick={(f) => setFloor(f === 'lower' ? 'main-hall' : 'rooftop')}
+            floor={floor}
+            onFloor={setFloor}
+          />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
           {unlocked && (

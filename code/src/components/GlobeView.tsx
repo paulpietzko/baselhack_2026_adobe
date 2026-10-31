@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import mapboxgl from 'mapbox-gl'
 import { MapPin } from 'lucide-react'
 import Globe from './Globe'
 import PlaceCards from './PlaceCards'
 import ClubDetails from './ClubDetails'
-import { BASEL_CAMERA, BASEL_PLACES, CLUB_ROUGE, type Place } from '../data/basel'
+import ImmersiveFloor from './immersive/ImmersiveFloor'
+import type { FloorId } from '../data/floors'
+import { BASEL_CAMERA, BASEL_PLACES, HAFENLICHT_CLUB, type Place } from '../data/basel'
 
 // Web Mercator y (0 at the top, 1 at the bottom) for a latitude
 const mercY = (lat: number) => (1 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / Math.PI) / 2
@@ -28,7 +31,17 @@ function fit(places: Place[], w: number, h: number) {
 const GLOBE_INTRO_MS = 500
 const FLY_DURATION_MS = 2500
 
-const GEM = BASEL_PLACES.find((p) => p.id === CLUB_ROUGE.id)!
+const GEM = BASEL_PLACES.find((p) => p.id === HAFENLICHT_CLUB.id)!
+// Looking at the club from across the street
+const GEM_CAMERA = { center: GEM.lngLat, zoom: 18.2, pitch: 60, bearing: -25, offset: [0, -40] as [number, number] }
+// Clicking a floor dives at it: towards the building for the hall, up to a near-horizontal skyline for the roof
+const FLOOR_DIVE_MS = 1400
+const FLOOR_CAMERA: Record<FloorId, mapboxgl.CameraOptions> = {
+  'main-hall': { center: GEM.lngLat, zoom: 19.6, pitch: 70, bearing: -25 },
+  rooftop: { center: GEM.lngLat, zoom: 17.4, pitch: 82, bearing: 155 },
+}
+// How far the city steps back: indoors it's gone, on the roof it's the view (story: Journey.tsx mapMood)
+const FLOOR_MOOD: Record<FloorId, string> = { 'main-hall': 'brightness-[0.2] blur-[10px]', rooftop: 'brightness-90 blur-[1.5px]' }
 const EXTRUDED = ['==', ['get', 'extrude'], 'true'] as const
 
 /** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
@@ -153,7 +166,7 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick }: {
+export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor }: {
   places: Place[] | null
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
@@ -161,6 +174,10 @@ export default function GlobeView({ places, focused = false, searching = null, o
   searching?: string | null
   /** Clicked one of the club's two floors on top of its building */
   onClubFloorsClick?: (floor: ClubFloor) => void
+  /** Standing on one of the club's floors: the map goes fullscreen behind the immersive view */
+  floor?: FloorId | null
+  /** Switch floors (id) or leave (null) from inside the immersive view */
+  onFloor?: (floor: FloorId | null) => void
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -173,7 +190,7 @@ export default function GlobeView({ places, focused = false, searching = null, o
     if (!map || !focused) return
     const dark = document.documentElement.dataset.theme !== 'light'
     add3dBuildings(map, dark)
-    map.flyTo({ center: GEM.lngLat, zoom: 18.2, pitch: 60, bearing: -25, offset: [0, -40], duration: 3000, essential: true })
+    map.flyTo({ ...GEM_CAMERA, duration: 3000, essential: true })
     let cleanupFloors: (() => void) | undefined
     // Wait for the zoomed-in building tiles to render before looking up the club's building
     const onIdle = () => {
@@ -191,6 +208,15 @@ export default function GlobeView({ places, focused = false, searching = null, o
       cleanupFloors?.()
     }
   }, [map, focused])
+
+  // Into a floor: dive at it. Out again: back across the street.
+  const wasOnFloor = useRef(false)
+  useEffect(() => {
+    if (!map) return
+    if (floor) map.flyTo({ ...FLOOR_CAMERA[floor], duration: FLOOR_DIVE_MS, essential: true })
+    else if (wasOnFloor.current) map.flyTo({ ...GEM_CAMERA, duration: FLOOR_DIVE_MS, essential: true })
+    wasOnFloor.current = !!floor
+  }, [map, floor])
 
   const flown = useRef(false)
 
@@ -211,11 +237,20 @@ export default function GlobeView({ places, focused = false, searching = null, o
   }, [loaded, places])
 
   return (
-    <div className="pointer-events-auto relative mx-auto my-2 min-h-0 w-[92%] flex-1 sidebar-collapsed:fixed sidebar-collapsed:z-0 sidebar-collapsed:top-0 sidebar-collapsed:right-0 sidebar-collapsed:left-14 sidebar-collapsed:mt-0 sidebar-collapsed:h-screen sidebar-collapsed:w-auto">
-      {/* Wrapper does the positioning: mapbox-gl.css forces `position: relative` on the map element itself */}
-      <div className="persona-fade absolute inset-0 animate-globe-in sidebar-collapsed:rounded-none sidebar-collapsed:[mask-image:linear-gradient(to_bottom,#000_65%,transparent_95%)]">
+    <div className={`pointer-events-auto relative mx-auto my-2 min-h-0 w-[92%] flex-1 sidebar-collapsed:fixed sidebar-collapsed:top-0 sidebar-collapsed:right-0 sidebar-collapsed:left-14 sidebar-collapsed:mt-0 sidebar-collapsed:h-screen sidebar-collapsed:w-auto ${floor ? '' : 'sidebar-collapsed:z-0'}`}>
+      {/* Wrapper does the positioning: mapbox-gl.css forces `position: relative` on the map element itself.
+          On a floor it breaks out to fill the screen behind the immersive view (Home drops its stacking context for this). */}
+      <div
+        className={`animate-globe-in transition-[filter] duration-1000 ${
+          floor
+            ? `fixed inset-0 z-30 bg-black ${FLOOR_MOOD[floor]}`
+            : 'persona-fade absolute inset-0 sidebar-collapsed:rounded-none sidebar-collapsed:[mask-image:linear-gradient(to_bottom,#000_65%,transparent_95%)]'
+        }`}
+      >
         <Globe className="size-full" onLoad={(m, stopSpin) => setLoaded({ map: m, stopSpin })} />
       </div>
+
+      {floor && onFloor && createPortal(<ImmersiveFloor floor={floor} onFloor={onFloor} onClose={() => onFloor(null)} />, document.body)}
 
       {map && places && !focused && <PlaceCards map={map} places={places} />}
 
