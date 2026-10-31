@@ -9,11 +9,14 @@ const SECONDS_PER_REVOLUTION = 120
 const MAX_SPIN_ZOOM = 5
 const SLOW_SPIN_ZOOM = 3
 
-/** Spinning Mapbox globe. Calls onLoad with the map once it's ready. */
+/**
+ * Spinning Mapbox globe. Calls onLoad once the map is ready, with a function that
+ * stops the spin for good (call it before your own flyTo, or the spin fights it).
+ */
 export default function Globe({ className = '', controls = false, onLoad }: {
   className?: string
   controls?: boolean
-  onLoad?: (map: mapboxgl.Map) => void
+  onLoad?: (map: mapboxgl.Map, stopSpin: () => void) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
   const onLoadRef = useRef(onLoad)
@@ -34,10 +37,11 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     if (controls) map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right')
 
     let userInteracting = false
+    let spinStopped = false
 
     const spinGlobe = () => {
       const zoom = map.getZoom()
-      if (userInteracting || zoom >= MAX_SPIN_ZOOM) return
+      if (spinStopped || userInteracting || zoom >= MAX_SPIN_ZOOM) return
       let distancePerSecond = 360 / SECONDS_PER_REVOLUTION
       if (zoom > SLOW_SPIN_ZOOM) {
         distancePerSecond *= (MAX_SPIN_ZOOM - zoom) / (MAX_SPIN_ZOOM - SLOW_SPIN_ZOOM)
@@ -64,7 +68,7 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     })
     map.on('load', () => {
       spinGlobe()
-      onLoadRef.current?.(map)
+      onLoadRef.current?.(map, () => (spinStopped = true))
     })
     map.on('mousedown', stop)
     map.on('dragstart', stop)
