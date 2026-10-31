@@ -3,15 +3,22 @@ import { Link } from 'react-router'
 import { ArrowUpRight, Check } from 'lucide-react'
 import Connect from '../components/acme/Connect'
 import Scan from '../components/acme/Scan'
-import { DesignPanel, ProfilePanel } from '../components/acme/Studio'
-import Scene, { type ClubConfig, type Zone } from '../components/acme/Venue'
+import { BuildingPanel, ProfilePanel } from '../components/acme/Studio'
+import Scene, { type Light } from '../components/acme/Venue'
 import { AcmeLogo, cta, glass } from '../components/acme/ui'
-import { vendor, type Field, type Space } from '../data/vendor'
+import { vendor, type Field } from '../data/vendor'
 
 type Stage = 'connect' | 'scan' | 'studio'
 
-const SCAN_MS = 8000
+const SCAN_MS = 3500
 const STEPS = ['Connect', 'Scan', 'Design', 'Publish']
+
+/** "my-club.ch" → "My Club" */
+const nameFrom = (domain: string) =>
+  domain
+    .split('.')[0]
+    .replace(/[-_]+/g, ' ')
+    .replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())
 
 function Progress({ value }: { value: number }) {
   const c = 2 * Math.PI * 14
@@ -48,7 +55,7 @@ function Published({ name, floors, onClose }: { name: string; floors: number; on
         </span>
         <h2 className="mt-4 text-2xl font-semibold tracking-tight">{name || 'Your club'} is live</h2>
         <p className="mt-2 text-sm text-neutral-500">
-          Your club, its {floors} floors and the floorplan are now on Claude. Guests can ask, look around and get in
+          Your club and all {floors} floors are now on Claude. Guests can ask, walk through every room and get in
           without ever opening your website.
         </p>
         <div className="mt-5 rounded-2xl bg-black/[0.04] p-3 text-left text-sm">
@@ -73,10 +80,12 @@ export default function Vendor() {
   const [url, setUrl] = useState<string>()
   const [progress, setProgress] = useState(0)
   const [profile, setProfile] = useState<Field[]>(vendor.profile)
-  const [spaces, setSpaces] = useState(vendor.spaces)
-  const [spaceId, setSpaceId] = useState(vendor.spaces[0].id)
-  const [plan, setPlan] = useState(false)
+  const [floors, setFloors] = useState(vendor.floors)
+  const [open, setOpen] = useState<string | null>(null)
+  const [room, setRoom] = useState<number | null>(null)
+  const [hover, setHover] = useState<string | null>(null)
   const [party, setParty] = useState(false)
+  const [light, setLight] = useState<Light>('pink')
   const [published, setPublished] = useState(false)
 
   // Mock crawl: progress runs 0 → 1, then the studio opens
@@ -89,7 +98,7 @@ export default function Vendor() {
       const p = Math.min((performance.now() - start) / SCAN_MS, 1)
       setProgress(p)
       if (p < 1) raf = requestAnimationFrame(tick)
-      else timer = window.setTimeout(() => setStage('studio'), 900)
+      else timer = window.setTimeout(() => setStage('studio'), 500)
     }
     raf = requestAnimationFrame(tick)
     return () => {
@@ -98,18 +107,21 @@ export default function Vendor() {
     }
   }, [stage])
 
-  const space = spaces.find((s) => s.id === spaceId)!
-  const updateSpace = (patch: Partial<Space>) =>
-    setSpaces((ss) => ss.map((s) => (s.id === spaceId ? { ...s, ...patch } : s)))
-  const updateConfig = (patch: Partial<ClubConfig>) => updateSpace({ config: { ...space.config, ...patch } })
   // Stable so the memoized scene doesn't re-render on every edit
-  const moveZone = useCallback(
-    (zone: Zone, at: [number, number]) =>
-      setSpaces((ss) =>
-        ss.map((s) => (s.id === spaceId ? { ...s, config: { ...s.config, layout: { ...s.config.layout, [zone]: at } } } : s)),
-      ),
-    [spaceId],
-  )
+  const openFloor = useCallback((id: string | null) => {
+    setOpen(id)
+    setRoom(null)
+    setHover(null)
+  }, [])
+  // Right-click or Esc steps back out: room → floor → building
+  const back = () => (room !== null ? setRoom(null) : openFloor(null))
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && back()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const setCapacity = (capacity: number) => setFloors((fs) => fs.map((f) => (f.id === open ? { ...f, capacity } : f)))
   const updateField = (key: string, patch: Partial<Field>) =>
     setProfile((fs) => fs.map((f) => (f.key === key ? { ...f, ...patch } : f)))
   const manual = () => {
@@ -122,14 +134,26 @@ export default function Vendor() {
   const step = published ? 3 : ['connect', 'scan', 'studio'].indexOf(stage)
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[radial-gradient(80%_60%_at_50%_0%,#ffffff,#f5f5f7_60%,#e8e8ed)] font-system text-neutral-900 antialiased [color-scheme:light]">
+    <div
+      onContextMenu={(e) => {
+        if (stage !== 'studio' || !(e.target instanceof HTMLCanvasElement)) return
+        e.preventDefault()
+        back()
+      }}
+      className="fixed inset-0 overflow-hidden bg-[radial-gradient(80%_60%_at_50%_0%,#ffffff,#f5f5f7_60%,#e8e8ed)] font-system text-neutral-900 antialiased [color-scheme:light]">
       <Scene
         progress={progress}
         interactive={stage === 'studio'}
-        plan={plan}
+        floors={floors}
+        open={open}
+        room={room}
+        hover={hover}
+        name={profile[0].value || 'your club'}
         party={party}
-        config={space.config}
-        onMove={moveZone}
+        light={light}
+        onHover={setHover}
+        onOpen={openFloor}
+        onRoom={setRoom}
       />
 
       <header className="relative z-20 flex h-14 items-center gap-6 px-5">
@@ -163,7 +187,10 @@ export default function Vendor() {
       {stage === 'connect' && (
         <Connect
           onScan={(u) => {
-            setUrl(u.replace(/^https?:\/\//, ''))
+            const domain = u.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+            setUrl(domain)
+            // A typed address names the club; plain Enter keeps the demo club
+            if (domain !== vendor.demoUrl) updateField('name', { value: nameFrom(domain) })
             setStage('scan')
           }}
           onManual={manual}
@@ -172,26 +199,24 @@ export default function Vendor() {
       {stage === 'scan' && <Scan url={url!} progress={progress} />}
       {stage === 'studio' && (
         <>
-          <ProfilePanel
-            url={url}
-            profile={profile}
-            onField={updateField}
-            spaces={spaces}
-            spaceId={spaceId}
-            onSelect={setSpaceId}
-            onCapacity={(capacity) => updateSpace({ capacity })}
-          />
-          <DesignPanel
-            config={space.config}
-            onChange={updateConfig}
-            plan={plan}
-            onPlan={setPlan}
+          <ProfilePanel url={url} profile={profile} onField={updateField} />
+          <BuildingPanel
+            floors={floors}
+            open={open}
+            room={room}
+            hover={hover}
+            onHover={setHover}
+            onOpen={openFloor}
+            onRoom={setRoom}
+            onCapacity={setCapacity}
             party={party}
             onParty={setParty}
+            light={light}
+            onLight={setLight}
           />
         </>
       )}
-      {published && <Published name={profile[0].value} floors={spaces.length} onClose={() => setPublished(false)} />}
+      {published && <Published name={profile[0].value} floors={floors.length} onClose={() => setPublished(false)} />}
     </div>
   )
 }

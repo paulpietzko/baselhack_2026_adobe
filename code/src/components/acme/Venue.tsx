@@ -1,20 +1,19 @@
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree, type ThreeElements, type ThreeEvent } from '@react-three/fiber'
 import {
   AdditiveBlending,
   BufferGeometry,
   CanvasTexture,
   Color,
+  DoubleSide,
   Float32BufferAttribute,
   MathUtils,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PMREMGenerator,
-  Plane,
-  Raycaster,
   RepeatWrapping,
   SRGBColorSpace,
-  Vector2,
+  Spherical,
   Vector3,
   type AmbientLight,
   type DirectionalLight,
@@ -22,54 +21,39 @@ import {
   type Mesh,
   type PointLight,
   type Points,
-  type Ray,
   type Texture,
 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import type { Floor, Room } from '../../data/vendor'
 
-// wall color + matching upholstery
-export const WALLS = {
-  concrete: { wall: '#8f8d89', accent: '#6e2f3f' },
-  brick: { wall: '#8e4b3d', accent: '#2f4f4a' },
-  black: { wall: '#2c2c2e', accent: '#7a5c3a' },
-  white: { wall: '#e5e3de', accent: '#2c2c2e' },
-}
-export const FLOORS = { concrete: '#9a9893', oak: '#8a6446', rubber: '#2f2f32' }
 export const LIGHTS = { pink: '#ff2d55', blue: '#0a84ff', purple: '#bf5af2', orange: '#ff9f0a' }
-export const AREAS = { bar: 'Bar', lounge: 'Lounge', coat: 'Coat check', ball: 'Disco ball', lasers: 'Lasers' }
+export type Light = keyof typeof LIGHTS
 
-export type Area = keyof typeof AREAS
-export type Zone = 'dancefloor' | 'booth' | 'bar' | 'lounge' | 'coat'
-export type ClubConfig = {
-  wall: keyof typeof WALLS
-  floor: keyof typeof FLOORS
-  light: keyof typeof LIGHTS
-  areas: Area[]
-  /** Floorplan: x/z position of each zone in meters-ish */
-  layout: Record<Zone, [number, number]>
-}
+const LEVELS = 5 // levels 1–2 belong to other tenants, the club has the ground floor, level 3 and the roof
+const H = 2.6 // floor-to-floor height
+const INNER = 2.35 // clear height below the next slab
 
 type Vec3 = [number, number, number]
-type Hover = (label: string | null, e?: ThreeEvent<PointerEvent>) => void
-type Drag = ((zone: Zone, obj: Group, ray: Ray) => void) | null
+type Tip = (label: string | null, e?: ThreeEvent<PointerEvent>) => void
 
-// progress (0–1) drives the assembly while scanning, hover feeds the DOM label, drag moves zones
-const Ctx = createContext<{ progress: number; hover: Hover; drag: Drag }>({ progress: 1, hover: () => {}, drag: null })
+// progress (0–1) drives the assembly while scanning, tip feeds the DOM label
+const Ctx = createContext<{ progress: number; tip: Tip }>({ progress: 1, tip: () => {} })
 
 // Party state shared by everything that glows, eased each frame in <Lights>
 const fx = { party: 0, color: new Color(LIGHTS.pink) }
 const LED = new MeshStandardMaterial({ color: '#1c1c1e', emissive: '#ffffff', emissiveIntensity: 0 })
-const FLOOR_PLANE = new Plane(new Vector3(0, 1, 0), 0)
-// Footprint of each zone around its origin [minX, maxX, minZ, maxZ], keeps it inside the 7 × 5 room
-const BOUNDS: Record<Zone, [number, number, number, number]> = {
-  dancefloor: [-1.4, 1.4, -1.1, 1.1],
-  booth: [-1.65, 1.65, -0.55, 0.35],
-  bar: [-0.6, 0.95, -1.35, 1.35],
-  lounge: [-0.8, 0.8, -1.15, 0.65],
-  coat: [-0.5, 0.45, -0.65, 0.65],
-}
+const GLASS = new MeshStandardMaterial({
+  color: '#cfe0ee',
+  transparent: true,
+  opacity: 0.2,
+  roughness: 0.05,
+  metalness: 0.1,
+  side: DoubleSide,
+  depthWrite: false,
+})
+const HIGHLIGHT = new Color('#0071e3')
 
 // ─── Textures ────────────────────────────────────────────────────────────────
 
@@ -83,8 +67,9 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
   return t
 }
 
+let planks: Texture | undefined
 const plankTexture = () => {
-  const t = canvasTexture(512, 512, (g) => {
+  planks ??= canvasTexture(512, 512, (g) => {
     for (let i = 0; i < 16; i++) {
       const v = 222 + ((i * 53) % 34)
       g.fillStyle = `rgb(${v},${v},${v})`
@@ -93,27 +78,31 @@ const plankTexture = () => {
       g.fillRect((i * 197) % 512, i * 32, 2, 32)
     }
   })
-  t.wrapS = t.wrapT = RepeatWrapping
-  return t
+  planks.wrapS = planks.wrapT = RepeatWrapping
+  return planks
 }
 
 const shadowTexture = () =>
   canvasTexture(256, 256, (g) => {
     const rg = g.createRadialGradient(128, 128, 0, 128, 128, 128)
-    rg.addColorStop(0, 'rgba(0,0,0,.28)')
+    rg.addColorStop(0, 'rgba(0,0,0,.3)')
     rg.addColorStop(0.55, 'rgba(0,0,0,.08)')
     rg.addColorStop(1, 'rgba(0,0,0,0)')
     g.fillStyle = rg
     g.fillRect(0, 0, 256, 256)
   })
 
-const signTexture = () =>
-  canvasTexture(512, 128, (g) => {
-    g.font = '600 80px -apple-system, Inter, sans-serif'
+const signTexture = (text: string) =>
+  canvasTexture(1024, 256, (g) => {
+    let size = 170
+    g.font = `600 ${size}px -apple-system, Inter, sans-serif`
+    const w = g.measureText(text).width
+    if (w > 980) size *= 980 / w
+    g.font = `600 ${size}px -apple-system, Inter, sans-serif`
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     g.fillStyle = '#fff'
-    g.fillText('hafenlicht', 256, 64)
+    g.fillText(text, 512, 128)
   })
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
@@ -130,42 +119,37 @@ function Block({ size, color, radius = 0.03, map, ...props }: { size: Vec3; colo
   return <mesh geometry={geometry} material={material} castShadow receiveShadow {...props} />
 }
 
-type PopProps = { at: number; show?: boolean; label?: string; zone?: Zone; children: ReactNode } & ThreeElements['group']
-
-/** Drops its children in (or shrinks them away), labels them on hover and, given a zone, lets you drag it */
-function Pop({ at, show = true, label, zone, children, ...props }: PopProps) {
-  const { progress, hover, drag } = useContext(Ctx)
-  const outer = useRef<Group>(null!)
+/** Drops its children onto the stack once the scan reaches `at` */
+function Pop({ at, children, ...props }: { at: number; children: ReactNode } & ThreeElements['group']) {
+  const { progress } = useContext(Ctx)
   const inner = useRef<Group>(null!)
-  const on = show && progress >= at
   useFrame((_, dt) => {
     const g = inner.current
-    const s = MathUtils.damp(g.scale.x, on ? 1 : 0, 8, dt)
+    const s = MathUtils.damp(g.scale.x, progress >= at ? 1 : 0, 8, dt)
     g.scale.setScalar(Math.max(s, 1e-4))
-    g.position.y = (1 - s) * 1.5
+    g.position.y = (1 - s) * 6
     g.visible = s > 0.01
   })
-  const text = zone && drag ? `${label} · drag to move` : label
-  const onHover = (e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation()
-    hover(text!, e)
-  }
   return (
-    <group ref={outer} {...props}>
-      <group
-        ref={inner}
-        scale={1e-4}
-        {...(label && { onPointerOver: onHover, onPointerMove: onHover, onPointerOut: () => hover(null) })}
-        {...(zone &&
-          drag && {
-            onPointerDown: (e: ThreeEvent<PointerEvent>) => {
-              e.stopPropagation()
-              drag(zone, outer.current, e.ray)
-            },
-          })}
-      >
+    <group {...props}>
+      <group ref={inner} scale={1e-4}>
         {children}
       </group>
+    </group>
+  )
+}
+
+/** A storey that eases up by `lift` (hover peek, or out of the way when a floor below is open) */
+function Lift({ y, lift, children, ...props }: { y: number; lift: number; children: ReactNode } & ThreeElements['group']) {
+  const ref = useRef<Group>(null!)
+  useFrame((_, dt) => {
+    const g = ref.current
+    g.position.y = MathUtils.damp(g.position.y, y + lift, 6, dt)
+    g.visible = g.position.y < y + 12
+  })
+  return (
+    <group ref={ref} position-y={y} {...props}>
+      {children}
     </group>
   )
 }
@@ -173,7 +157,7 @@ function Pop({ at, show = true, label, zone, children, ...props }: PopProps) {
 // ─── Club furniture ──────────────────────────────────────────────────────────
 
 const TILE = 0.55
-// 5 × 4 LED tiles centred on the zone
+// 5 × 4 LED tiles centred on the dancefloor
 const TILES = Array.from({ length: 20 }, (_, i) => [(i % 5) - 2, Math.floor(i / 5) - 1.5] as const)
 
 function Dancefloor() {
@@ -190,13 +174,13 @@ function Dancefloor() {
     })
     lights.current.forEach((l) => {
       l.color.copy(fx.color)
-      l.intensity = 14 * fx.party
+      l.intensity = 12 * fx.party
     })
   })
   return (
     <>
       {TILES.map(([x, z], i) => (
-        <mesh key={i} geometry={geometry} material={mats[i]} position={[x * TILE, 0.02, z * TILE]} receiveShadow />
+        <mesh key={i} geometry={geometry} material={mats[i]} position={[x * TILE, 0.03, z * TILE]} receiveShadow />
       ))}
       {[-1, 1].map((x, i) => (
         <pointLight
@@ -204,8 +188,8 @@ function Dancefloor() {
           ref={(l) => {
             if (l) lights.current[i] = l
           }}
-          position={[x, 2.2, 0]}
-          distance={6}
+          position={[x, 1.9, 0]}
+          distance={5}
         />
       ))}
     </>
@@ -217,8 +201,8 @@ function DiscoBall() {
   useFrame((_, dt) => void (ref.current.rotation.y += dt * (0.15 + 1.2 * fx.party)))
   return (
     <>
-      <mesh position-y={0.55}>
-        <cylinderGeometry args={[0.005, 0.005, 0.5]} />
+      <mesh position-y={0.4}>
+        <cylinderGeometry args={[0.005, 0.005, 0.25]} />
         <meshBasicMaterial color="#8e8e93" />
       </mesh>
       <mesh ref={ref} castShadow>
@@ -298,23 +282,26 @@ function Lasers() {
 
 const BOTTLES = ['#30d158', '#ff9f0a', '#d1d1d6', '#ff453a', '#64d2ff']
 
-function Bar() {
+/** Counter along z, guests on the +x side, back bar with bottles on the -x side */
+function Bar({ length }: { length: number }) {
+  const bottles = Math.floor((length - 0.4) / 0.21)
+  const stools = Math.floor(length / 0.6)
   return (
     <>
-      <Block size={[0.6, 1.05, 2.6]} position={[0, 0.525, 0]} color="#2c2c2e" />
-      <Block size={[0.78, 0.06, 2.7]} position={[0.05, 1.08, 0]} color="#a07f62" />
+      <Block size={[0.6, 1.05, length]} position={[0, 0.525, 0]} color="#2c2c2e" />
+      <Block size={[0.78, 0.06, length + 0.1]} position={[0.05, 1.08, 0]} color="#a07f62" />
       <mesh position={[0.31, 0.95, 0]} material={LED}>
-        <boxGeometry args={[0.02, 0.04, 2.5]} />
+        <boxGeometry args={[0.02, 0.04, length - 0.1]} />
       </mesh>
-      <Block size={[0.3, 1.5, 2.4]} position={[-0.45, 0.75, 0]} color="#3a3a3c" />
-      {Array.from({ length: 11 }, (_, i) => (
-        <mesh key={i} position={[-0.45, 1.62, -1.05 + i * 0.21]} castShadow>
+      <Block size={[0.3, 1.5, length - 0.2]} position={[-0.45, 0.75, 0]} color="#3a3a3c" />
+      {Array.from({ length: bottles }, (_, i) => (
+        <mesh key={i} position={[-0.45, 1.62, (i - (bottles - 1) / 2) * 0.21]} castShadow>
           <cylinderGeometry args={[0.04, 0.04, 0.24, 12]} />
           <meshStandardMaterial color={BOTTLES[i % BOTTLES.length]} roughness={0.2} />
         </mesh>
       ))}
-      {[-0.9, -0.3, 0.3, 0.9].map((z) => (
-        <group key={z} position={[0.75, 0, z]}>
+      {Array.from({ length: stools }, (_, i) => (
+        <group key={i} position={[0.75, 0, (i - (stools - 1) / 2) * 0.6]}>
           <mesh position-y={0.36} castShadow>
             <cylinderGeometry args={[0.03, 0.03, 0.72, 8]} />
             <meshStandardMaterial color="#8e8e93" metalness={0.8} roughness={0.3} />
@@ -329,13 +316,14 @@ function Bar() {
   )
 }
 
-function Lounge({ accent }: { accent: string }) {
+function Lounge() {
+  const velvet = '#6e2f3f'
   return (
     <>
-      <Block size={[1.6, 0.38, 0.7]} position={[0, 0.19, 0.3]} color={accent} radius={0.08} />
-      <Block size={[1.6, 0.45, 0.18]} position={[0, 0.6, 0.56]} color={accent} radius={0.08} />
-      <Block size={[0.7, 0.38, 1.1]} position={[0.45, 0.19, -0.6]} color={accent} radius={0.08} />
-      <Block size={[0.18, 0.45, 1.1]} position={[0.71, 0.6, -0.6]} color={accent} radius={0.08} />
+      <Block size={[1.6, 0.38, 0.7]} position={[0, 0.19, 0.3]} color={velvet} radius={0.08} />
+      <Block size={[1.6, 0.45, 0.18]} position={[0, 0.6, 0.56]} color={velvet} radius={0.08} />
+      <Block size={[0.7, 0.38, 1.1]} position={[0.45, 0.19, -0.6]} color={velvet} radius={0.08} />
+      <Block size={[0.18, 0.45, 1.1]} position={[0.71, 0.6, -0.6]} color={velvet} radius={0.08} />
       <mesh position={[-0.25, 0.175, -0.45]} castShadow receiveShadow>
         <cylinderGeometry args={[0.28, 0.28, 0.35, 32]} />
         <meshStandardMaterial color="#d1d1d6" roughness={0.4} />
@@ -362,83 +350,380 @@ function CoatCheck() {
   )
 }
 
-function Sign() {
-  const mat = useMemo(() => new MeshBasicMaterial({ map: signTexture(), transparent: true, toneMapped: false }), [])
-  const off = useMemo(() => new Color('#d1d1d6'), [])
-  useFrame(() => void mat.color.lerpColors(off, fx.color, fx.party))
+const LEAVES: [number, number, number, number][] = [
+  [0, 0.62, 0, 0.26],
+  [0.12, 0.85, 0.05, 0.2],
+  [-0.1, 0.95, -0.06, 0.17],
+]
+
+function Plant() {
   return (
-    <mesh material={mat} position={[-3.49, 2.2, -0.4]} rotation-y={Math.PI / 2}>
-      <planeGeometry args={[2, 0.5]} />
-    </mesh>
+    <>
+      <mesh position-y={0.18} castShadow receiveShadow>
+        <cylinderGeometry args={[0.17, 0.13, 0.36, 20]} />
+        <meshStandardMaterial color="#d1d1d6" roughness={0.9} />
+      </mesh>
+      {LEAVES.map(([x, y, z, r]) => (
+        <mesh key={y} position={[x, y, z]} castShadow>
+          <icosahedronGeometry args={[r, 0]} />
+          <meshStandardMaterial color="#3f6e48" flatShading roughness={0.9} />
+        </mesh>
+      ))}
+    </>
   )
 }
 
-const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+function Toilets() {
+  return (
+    <>
+      {[0.55, 1.45].map((z) => (
+        <group key={z} position={[-0.5, 0, z]}>
+          <Block size={[0.85, 1.8, 0.85]} position-y={0.9} color="#8e8e93" />
+          <Block size={[0.04, 1.5, 0.6]} position={[-0.44, 0.85, 0]} color="#f2f2f7" radius={0.01} />
+        </group>
+      ))}
+      <Block size={[0.45, 0.85, 1]} position={[-1.7, 0.425, 1]} color="#f2f2f7" />
+    </>
+  )
+}
 
-function Club({ config }: { config: ClubConfig }) {
-  const { wall, accent } = WALLS[config.wall]
-  const has = (a: Area) => config.areas.includes(a)
-  const pos = (z: Zone): Vec3 => [config.layout[z][0], 0, config.layout[z][1]]
-  const planks = useMemo(plankTexture, [])
+function Lobby() {
+  return (
+    <>
+      <Block size={[1.3, 2.1, 0.08]} position={[-1.2, 1.05, -2.44]} color="#aeaeb2" radius={0.01} />
+      <Block size={[0.02, 2, 0.09]} position={[-1.2, 1.05, -2.44]} color="#636366" radius={0.005} />
+      <Block size={[1.6, 1, 0.6]} position={[0.6, 0.5, -0.4]} color="#2c2c2e" />
+      <mesh position={[0.6, 0.8, -0.09]} material={LED}>
+        <boxGeometry args={[1.5, 0.04, 0.02]} />
+      </mesh>
+      {[-1.6, -0.8, 0, 0.8].map((x) => (
+        <mesh key={x} position={[x, 0.45, 1.2]} castShadow>
+          <cylinderGeometry args={[0.03, 0.05, 0.9, 12]} />
+          <meshStandardMaterial color="#c7c7cc" metalness={0.8} roughness={0.3} />
+        </mesh>
+      ))}
+      <Block size={[2.4, 0.04, 0.04]} position={[-0.4, 0.85, 1.2]} color="#8e1b2c" radius={0.01} />
+    </>
+  )
+}
+
+function Terrace() {
+  return (
+    <>
+      <group position-z={-1.9}>
+        <Booth />
+      </group>
+      <group position={[-1.45, 0, 1.6]}>
+        <Lounge />
+      </group>
+      {[
+        [0.6, 0.6],
+        [-0.2, -0.3],
+      ].map(([x, z]) => (
+        <group key={x} position={[x, 0, z]}>
+          <mesh position-y={0.5} castShadow>
+            <cylinderGeometry args={[0.03, 0.03, 1, 8]} />
+            <meshStandardMaterial color="#8e8e93" metalness={0.8} />
+          </mesh>
+          <Block size={[0.6, 0.04, 0.6]} position-y={1.02} color="#f2f2f7" radius={0.02} />
+        </group>
+      ))}
+      {[
+        [1.85, 2.15],
+        [-2, -0.9],
+        [1.85, -0.9],
+      ].map(([x, z]) => (
+        <group key={x + z} position={[x, 0, z]}>
+          <Plant />
+        </group>
+      ))}
+    </>
+  )
+}
+
+/** Furniture for a room, placed from its rectangle on the floor */
+function Furniture({ room }: { room: Room }) {
+  const [x0, z0, x1, z1] = room.rect
+  const cx = (x0 + x1) / 2
+  const cz = (z0 + z1) / 2
+  switch (room.kind) {
+    case 'dance':
+      return (
+        <>
+          <group position={[cx, 0, cz + 0.45]}>
+            <Dancefloor />
+            <group position-y={1.85}>
+              <DiscoBall />
+            </group>
+          </group>
+          <group position={[cx, 0, z0 + 0.6]}>
+            <Booth />
+            <group position={[0, 1.15, -0.1]}>
+              <Lasers />
+            </group>
+          </group>
+        </>
+      )
+    case 'bar':
+      return (
+        <group position={[x1 - 0.6, 0, cz]} rotation-y={Math.PI}>
+          <Bar length={Math.min(2.6, z1 - z0 - 0.6)} />
+        </group>
+      )
+    case 'toilets':
+      return (
+        <group position={[x1, 0, z0]}>
+          <Toilets />
+        </group>
+      )
+    case 'lobby':
+      return (
+        <group position={[cx, 0, cz]}>
+          <Lobby />
+        </group>
+      )
+    case 'coat':
+      return (
+        <>
+          {[-1, 1].map((dz) => (
+            <group key={dz} position={[x1 - 0.65, 0, cz + dz]} rotation-y={Math.PI}>
+              <CoatCheck />
+            </group>
+          ))}
+        </>
+      )
+    case 'terrace':
+      return (
+        <group position={[cx, 0, cz]}>
+          <Terrace />
+        </group>
+      )
+  }
+  return null
+}
+
+// ─── Building ────────────────────────────────────────────────────────────────
+
+const ROOM_FLOORS: Record<string, string> = {
+  dance: '#3a3a3c',
+  bar: '#9c7656',
+  toilets: '#e5e5ea',
+  lobby: '#c7c7cc',
+  coat: '#9c7656',
+  terrace: '#b08d6e',
+}
+const WOOD = ['bar', 'coat', 'terrace']
+
+/** A room's floor patch plus furniture; hoverable and clickable once its floor is open */
+function RoomZone({ room, at, active, focused, onSelect }: { room: Room; at: number; active: boolean; focused: boolean; onSelect: () => void }) {
+  const { tip } = useContext(Ctx)
+  const [x0, z0, x1, z1] = room.rect
+  const [hot, setHot] = useState(false)
+  const base = useMemo(() => new Color(ROOM_FLOORS[room.kind]), [room.kind])
+  const mat = useMemo(
+    () => new MeshStandardMaterial({ color: base, roughness: 0.8, ...(WOOD.includes(room.kind) && { map: plankTexture() }) }),
+    [base, room.kind],
+  )
+  const goal = useMemo(() => new Color(), [])
+  useFrame((_, dt) => void mat.color.lerp(goal.copy(base).lerp(HIGHLIGHT, hot || focused ? 0.35 : 0), 1 - Math.exp(-10 * dt)))
+  useEffect(() => {
+    if (!active) setHot(false)
+  }, [active])
+
+  const label = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    tip(focused ? room.name : `${room.name} · click to enter`, e)
+  }
+  const events = active && {
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+      setHot(true)
+      label(e)
+    },
+    onPointerMove: label,
+    onPointerOut: () => {
+      setHot(false)
+      tip(null)
+    },
+    onClick: (e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation()
+      if (e.delta < 5) onSelect()
+    },
+  }
+
+  return (
+    <group {...events}>
+      <Pop at={at}>
+        <mesh material={mat} position={[(x0 + x1) / 2, 0.01, (z0 + z1) / 2]} rotation-x={-Math.PI / 2} receiveShadow>
+          <planeGeometry args={[x1 - x0 - 0.04, z1 - z0 - 0.04]} />
+        </mesh>
+        <Furniture room={room} />
+      </Pop>
+    </group>
+  )
+}
+
+function Partition({ seg: [x0, z0, x1, z1] }: { seg: number[] }) {
+  const alongZ = x0 === x1
+  const len = alongZ ? Math.abs(z1 - z0) : Math.abs(x1 - x0)
+  return (
+    <Block
+      size={alongZ ? [0.1, INNER, len] : [len, INNER, 0.1]}
+      position={[(x0 + x1) / 2, INNER / 2, (z0 + z1) / 2]}
+      color="#f2f2f7"
+      radius={0.01}
+    />
+  )
+}
+
+const SIDES: [number, number, number, number][] = [
+  // x, z, rotationY, width
+  [0, -2.6, 0, 7.2],
+  [0, 2.6, 0, 7.2],
+  [-3.6, 0, Math.PI / 2, 5.2],
+  [3.6, 0, Math.PI / 2, 5.2],
+]
+const CORNERS = [
+  [-3.6, -2.6],
+  [3.6, -2.6],
+  [-3.6, 2.6],
+  [3.6, 2.6],
+]
+
+/** Glass facade (or railing on the roof) with slim corner columns */
+function Glass({ h }: { h: number }) {
+  return (
+    <>
+      {SIDES.map(([x, z, ry, w], i) => (
+        <mesh key={i} material={GLASS} position={[x, h / 2, z]} rotation-y={ry}>
+          <planeGeometry args={[w, h]} />
+        </mesh>
+      ))}
+      {CORNERS.map(([x, z], i) => (
+        <Block key={i} size={[0.16, h, 0.16]} position={[x, h / 2, z]} color="#f2f2f7" radius={0.01} />
+      ))}
+    </>
+  )
+}
+
+/** Floors that aren't part of the club: closed facade with a window band */
+function Offices() {
+  return (
+    <>
+      <Block size={[7.2, INNER, 5.2]} position-y={INNER / 2} color="#d8d8dc" radius={0.01} />
+      <Block size={[7.24, 1.05, 5.24]} position-y={1.25} color="#4a5866" radius={0.01} />
+    </>
+  )
+}
+
+function RoofSign({ name }: { name: string }) {
+  const map = useMemo(() => signTexture(name), [name])
+  const mat = useMemo(() => new MeshBasicMaterial({ transparent: true, toneMapped: false }), [])
+  const off = useMemo(() => new Color('#1c1c1e'), [])
+  useEffect(() => {
+    mat.map = map
+    mat.needsUpdate = true
+    return () => map.dispose()
+  }, [mat, map])
+  useFrame(() => void mat.color.lerpColors(off, fx.color, fx.party))
+  return (
+    <group position-z={-2.45}>
+      {[-2, 2].map((x) => (
+        <Block key={x} size={[0.06, 1.5, 0.06]} position={[x, 0.75, -0.05]} color="#8e8e93" radius={0.01} />
+      ))}
+      <mesh material={mat} position-y={1.75}>
+        <planeGeometry args={[5, 1.25]} />
+      </mesh>
+    </group>
+  )
+}
+
+type BuildingProps = {
+  floors: Floor[]
+  open: string | null
+  room: number | null
+  hover: string | null
+  interactive: boolean
+  name: string
+  onHover: (id: string | null) => void
+  onOpen: (id: string) => void
+  onRoom: (index: number) => void
+}
+
+function Building({ floors, open, room, hover, interactive, name, onHover, onOpen, onRoom }: BuildingProps) {
+  const { tip } = useContext(Ctx)
   const shadow = useMemo(shadowTexture, [])
+  const levelOf = (id: string | null) => floors.find((f) => f.id === id)?.level ?? null
+  const openLevel = levelOf(open)
+  const hoverLevel = levelOf(hover)
 
   return (
     <>
       <Pop at={0.03}>
-        <mesh position-y={-0.21} rotation-x={-Math.PI / 2}>
-          <planeGeometry args={[12, 10]} />
+        <mesh position-y={-0.27} rotation-x={-Math.PI / 2}>
+          <planeGeometry args={[18, 15]} />
           <meshBasicMaterial map={shadow} transparent depthWrite={false} />
         </mesh>
       </Pop>
-      <Pop at={0.1} label={`${cap(config.floor)} floor`}>
-        <Block
-          size={[7, 0.2, 5]}
-          position={[0, -0.1, 0]}
-          color={FLOORS[config.floor]}
-          map={config.floor === 'oak' ? planks : undefined}
-          radius={0.02}
-        />
-      </Pop>
-      <Pop at={0.16}>
-        <Block size={[7.15, 3, 0.15]} position={[-0.075, 1.3, -2.575]} color={wall} radius={0.01} />
-      </Pop>
-      <Pop at={0.22}>
-        <Block size={[0.15, 3, 5]} position={[-3.575, 1.3, 0]} color={wall} radius={0.01} />
-        <Sign />
-      </Pop>
-      <Pop at={0.3} label="LED wall">
-        <mesh position={[0.25, 1.95, -2.49]} material={LED}>
-          <planeGeometry args={[3.2, 1.1]} />
-        </mesh>
-      </Pop>
-      <Pop at={0.4} zone="dancefloor" label="Dancefloor" position={pos('dancefloor')}>
-        <Dancefloor />
-        <Pop at={0.8} show={has('ball')} label={AREAS.ball} position={[0, 2.3, 0]}>
-          <DiscoBall />
-        </Pop>
-      </Pop>
-      <Pop at={0.48} zone="booth" label="DJ booth" position={pos('booth')}>
-        <Booth />
-        <Pop at={0.86} show={has('lasers')} label={AREAS.lasers} position={[0, 1.15, -0.1]}>
-          <Lasers />
-        </Pop>
-      </Pop>
-      <Pop at={0.58} show={has('bar')} zone="bar" label={AREAS.bar} position={pos('bar')}>
-        <Bar />
-      </Pop>
-      <Pop at={0.66} show={has('lounge')} zone="lounge" label={AREAS.lounge} position={pos('lounge')}>
-        <Lounge accent={accent} />
-      </Pop>
-      <Pop at={0.74} show={has('coat')} zone="coat" label={AREAS.coat} position={pos('coat')}>
-        <CoatCheck />
-      </Pop>
+      {Array.from({ length: LEVELS }, (_, level) => {
+        const floor = floors.find((f) => f.level === level)
+        const roof = level === LEVELS - 1
+        // An open floor sends everything above it away; hovering one lifts the storeys above for a peek
+        const lift = openLevel !== null ? (level > openLevel ? 30 : 0) : hoverLevel !== null && level > hoverLevel ? 2.4 : 0
+        const label = (e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation()
+          tip(`${floor!.name} · click to open`, e)
+        }
+        const events = floor &&
+          interactive &&
+          !open && {
+            onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+              onHover(floor.id)
+              label(e)
+            },
+            onPointerMove: label,
+            onPointerOut: () => {
+              onHover(null)
+              tip(null)
+            },
+            onClick: (e: ThreeEvent<MouseEvent>) => {
+              e.stopPropagation()
+              if (e.delta > 5) return
+              tip(null)
+              onOpen(floor.id)
+            },
+          }
+        return (
+          <Lift key={level} y={level * H} lift={lift} {...events}>
+            <Pop at={0.05 + level * 0.17}>
+              <Block size={[7.3, 0.25, 5.3]} position-y={-0.125} color="#e5e5ea" radius={0.02} castShadow={false} />
+              {floor ? <Glass h={roof ? 1 : INNER} /> : <Offices />}
+              {roof && <RoofSign name={name} />}
+            </Pop>
+            {floor?.walls.map((w, i) => (
+              <Pop key={i} at={0.05 + level * 0.17}>
+                <Partition seg={w} />
+              </Pop>
+            ))}
+            {floor?.rooms.map((r, i) => (
+              <RoomZone
+                key={r.name}
+                room={r}
+                at={0.05 + level * 0.17}
+                active={interactive && open === floor.id}
+                focused={open === floor.id && room === i}
+                onSelect={() => onRoom(i)}
+              />
+            ))}
+          </Lift>
+        )
+      })}
     </>
   )
 }
 
 // ─── Scene plumbing ──────────────────────────────────────────────────────────
 
-function Lights({ party, light }: { party: boolean; light: ClubConfig['light'] }) {
+function Lights({ party, light }: { party: boolean; light: Light }) {
   const scene = useThree((s) => s.scene)
   const sun = useRef<DirectionalLight>(null!)
   const fill = useRef<AmbientLight>(null!)
@@ -447,9 +732,9 @@ function Lights({ party, light }: { party: boolean; light: ClubConfig['light'] }
   useFrame((_, dt) => {
     const k = (fx.party = MathUtils.damp(fx.party, party ? 1 : 0, 3, dt))
     fx.color.lerp(target.set(LIGHTS[light]), 1 - Math.exp(-6 * dt))
-    sun.current.intensity = MathUtils.lerp(1.9, 0.08, k)
-    fill.current.intensity = MathUtils.lerp(0.3, 0.03, k)
-    scene.environmentIntensity = MathUtils.lerp(0.5, 0.05, k)
+    sun.current.intensity = MathUtils.lerp(1.9, 0.1, k)
+    fill.current.intensity = MathUtils.lerp(0.4, 0.05, k)
+    scene.environmentIntensity = MathUtils.lerp(0.55, 0.08, k)
     LED.emissive.copy(fx.color)
     LED.emissiveIntensity = 0.15 + 2.4 * k
   })
@@ -458,15 +743,16 @@ function Lights({ party, light }: { party: boolean; light: ClubConfig['light'] }
       <ambientLight ref={fill} />
       <directionalLight
         ref={sun}
-        position={[5, 9, 6]}
+        position={[12, 22, 14]}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
-        shadow-camera-left={-6}
-        shadow-camera-right={6}
-        shadow-camera-top={6}
-        shadow-camera-bottom={-6}
+        shadow-camera-left={-11}
+        shadow-camera-right={11}
+        shadow-camera-top={11}
+        shadow-camera-bottom={-11}
+        shadow-camera-far={60}
       />
     </>
   )
@@ -487,88 +773,49 @@ function Env() {
   return null
 }
 
-const PLAN = new Vector3(0, 20, 0.01)
+type Framing = { target: Vec3; distance: number; polar: number; azimuth?: number }
 
-/** Orbit by drag in the studio, slow drift while scanning, glide to a top-down floorplan */
-function Controls({ enabled, orbit, plan }: { enabled: boolean; orbit: boolean; plan: boolean }) {
-  const { camera, gl, set } = useThree()
+/** Orbit by drag and glide to a new framing (keeping the compass direction unless given) */
+function Camera({ target, distance, polar, azimuth, enabled }: Framing & { enabled: boolean }) {
+  const { camera, gl } = useThree()
   const ctl = useRef<OrbitControls>(null)
-  const goal = useRef<Vector3 | null>(null)
-  const saved = useRef<Vector3 | null>(null)
+  const goal = useRef<{ target: Vector3; position: Vector3 } | null>(null)
   useEffect(() => {
     const c = new OrbitControls(camera, gl.domElement)
     Object.assign(c, {
       enableDamping: true,
       enablePan: false,
-      minDistance: 10,
-      maxDistance: 24,
-      maxPolarAngle: 1.35,
-      minAzimuthAngle: -0.3,
-      maxAzimuthAngle: 1.75,
-      autoRotateSpeed: 0.9,
+      minDistance: 4,
+      maxDistance: 45,
+      maxPolarAngle: 1.4,
     })
-    c.target.set(0, 0.5, 0)
+    c.target.set(0, 6.6, 0)
     ctl.current = c
-    set({ controls: c })
-    return () => {
-      c.dispose()
-      set({ controls: null })
-    }
-  }, [camera, gl, set])
+    return () => c.dispose()
+  }, [camera, gl])
   useEffect(() => {
     ctl.current!.enabled = enabled
-    ctl.current!.enableRotate = !plan
-  }, [enabled, plan])
+  }, [enabled])
+  const [x, y, z] = target
   useEffect(() => {
-    if (plan) {
-      saved.current = camera.position.clone()
-      goal.current = PLAN
-    } else if (saved.current) goal.current = saved.current
-  }, [plan, camera])
+    const view = new Spherical().setFromVector3(camera.position.clone().sub(ctl.current!.target))
+    view.set(distance, polar, azimuth ?? view.theta)
+    const t = new Vector3(x, y, z)
+    goal.current = { target: t, position: t.clone().add(new Vector3().setFromSpherical(view)) }
+  }, [x, y, z, distance, polar, azimuth, camera])
   useFrame((_, dt) => {
     const c = ctl.current
     if (!c) return
-    if (goal.current) {
-      camera.position.lerp(goal.current, 1 - Math.exp(-5 * dt))
-      if (camera.position.distanceTo(goal.current) < 0.05) goal.current = null
+    const g = goal.current
+    if (g) {
+      const k = 1 - Math.exp(-4 * dt)
+      c.target.lerp(g.target, k)
+      camera.position.lerp(g.position, k)
+      if (camera.position.distanceTo(g.position) < 0.05) goal.current = null
     }
-    c.autoRotate = orbit
     c.update(dt)
   })
   return null
-}
-
-/** Drag a zone across the floor, snapped to a 25 cm grid and kept inside the walls */
-function useDrag(enabled: boolean, onMove: (zone: Zone, at: [number, number]) => void): Drag {
-  const { camera, gl } = useThree()
-  const controls = useThree((s) => s.controls) as OrbitControls | null
-  return useMemo(() => {
-    if (!enabled) return null
-    const ray = new Raycaster()
-    const ndc = new Vector2()
-    const hit = new Vector3()
-    return (zone, obj, startRay) => {
-      const offset = startRay.intersectPlane(FLOOR_PLANE, hit) ? obj.position.clone().sub(hit) : new Vector3()
-      if (controls) controls.enabled = false
-      const move = (e: PointerEvent) => {
-        const r = gl.domElement.getBoundingClientRect()
-        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
-        ray.setFromCamera(ndc, camera)
-        if (!ray.ray.intersectPlane(FLOOR_PLANE, hit)) return
-        const [x0, x1, z0, z1] = BOUNDS[zone]
-        obj.position.x = MathUtils.clamp(Math.round((hit.x + offset.x) * 4) / 4, -3.5 - x0, 3.5 - x1)
-        obj.position.z = MathUtils.clamp(Math.round((hit.z + offset.z) * 4) / 4, -2.5 - z0, 2.5 - z1)
-      }
-      const up = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', up)
-        if (controls) controls.enabled = true
-        onMove(zone, [obj.position.x, obj.position.z])
-      }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', up)
-    }
-  }, [enabled, camera, gl, controls, onMove])
 }
 
 function Globe({ show }: { show: boolean }) {
@@ -586,47 +833,56 @@ function Globe({ show }: { show: boolean }) {
   }, [])
   useFrame(({ clock }, dt) => {
     const p = ref.current
-    const s = MathUtils.damp(p.scale.x, show ? 3 : 0.01, 4, dt)
+    const s = MathUtils.damp(p.scale.x, show ? 6 : 0.01, 4, dt)
     p.scale.setScalar(s)
     p.rotation.y += dt * (show ? 0.12 : 2)
     p.rotation.x = Math.sin(clock.elapsedTime * 0.3) * 0.15
     p.visible = s > 0.03
   })
   return (
-    <points ref={ref} geometry={geometry} position={[0, 1, 0]} scale={3}>
-      <pointsMaterial size={0.032} color="#6e6e73" transparent opacity={0.7} depthWrite={false} />
+    <points ref={ref} geometry={geometry} position={[0, 6.6, 0]} scale={6}>
+      <pointsMaterial size={0.06} color="#6e6e73" transparent opacity={0.7} depthWrite={false} />
     </points>
   )
 }
 
-type Props = {
+type Props = BuildingProps & {
   progress: number
-  interactive: boolean
-  plan: boolean
   party: boolean
-  config: ClubConfig
-  onMove: (zone: Zone, at: [number, number]) => void
+  light: Light
 }
 
-function World({ progress, interactive, plan, party, config, onMove, hover }: Props & { hover: Hover }) {
-  const drag = useDrag(interactive, onMove)
-  const ctx = useMemo(() => ({ progress, hover, drag }), [progress, hover, drag])
+function World({ progress, party, light, tip, ...building }: Props & { tip: Tip }) {
+  const ctx = useMemo(() => ({ progress, tip }), [progress, tip])
+  const floor = building.floors.find((f) => f.id === building.open)
+  const room = floor && building.room !== null ? floor.rooms[building.room] : undefined
+  const y = (floor?.level ?? 0) * H
+  // Whole building → one floor (from the front, looking down into it) → one room (from above, over the walls)
+  const framing: Framing = !floor
+    ? { target: [0, 6.6, 0], distance: 31, polar: 1.12 }
+    : room
+      ? { target: [(room.rect[0] + room.rect[2]) / 2, y + 0.6, (room.rect[1] + room.rect[3]) / 2], distance: 10, polar: 0.6 }
+      : { target: [0, y + 0.6, 0], distance: 17, polar: 0.85, azimuth: 0.45 }
+
   return (
     <Ctx.Provider value={ctx}>
       <Env />
-      <Lights party={party} light={config.light} />
-      <Controls enabled={interactive} orbit={progress > 0 && progress < 1} plan={plan} />
+      <Lights party={party} light={light} />
+      <Camera
+        {...framing}
+        enabled={building.interactive}
+      />
       <Globe show={progress < 0.06} />
-      <Club config={config} />
+      <Building {...building} />
     </Ctx.Provider>
   )
 }
 
 function Scene(props: Props) {
-  const tip = useRef<HTMLDivElement>(null)
-  // Tooltip is moved directly in the DOM so hovering never re-renders the scene
-  const hover = useCallback<Hover>((label, e) => {
-    const el = tip.current!
+  const ref = useRef<HTMLDivElement>(null)
+  // The label is moved directly in the DOM so hovering never re-renders the scene
+  const tip = useCallback<Tip>((label, e) => {
+    const el = ref.current!
     el.style.opacity = label ? '1' : '0'
     if (!label || !e) return
     el.textContent = label
@@ -635,11 +891,11 @@ function Scene(props: Props) {
 
   return (
     <div className={`absolute inset-0 ${props.interactive ? 'cursor-grab active:cursor-grabbing' : ''}`}>
-      <Canvas shadows="percentage" dpr={[1, 2]} camera={{ position: [11.9, 9.8, 5.3], fov: 35 }}>
-        <World {...props} hover={hover} />
+      <Canvas shadows="percentage" dpr={[1, 2]} camera={{ position: [28.5, 21.4, 11.1], fov: 35 }}>
+        <World {...props} tip={tip} />
       </Canvas>
       <div
-        ref={tip}
+        ref={ref}
         className="pointer-events-none fixed top-0 left-0 rounded-full border border-white/70 bg-white/75 px-3 py-1 text-xs font-medium whitespace-nowrap text-neutral-900 opacity-0 shadow-lg shadow-black/10 backdrop-blur-xl transition-opacity"
       />
     </div>

@@ -6,68 +6,66 @@
     { "path": "/program/halloween", "note": "Masked · 23:00", "at": 0.18 },
     { "path": "/floors", "note": "3 floors", "at": 0.25 },
     { "path": "/floors/main-hall", "note": "450 guests · 18 photos", "at": 0.32 },
-    { "path": "/floors/keller", "note": "150 guests · 11 photos", "at": 0.4 },
+    { "path": "/floors/rooftop", "note": "250 guests · 24 photos", "at": 0.4 },
     { "path": "/tickets", "note": "Presale, door", "at": 0.48 },
     { "path": "/info", "note": "Address, hours", "at": 0.56 },
     { "path": "/house-rules", "note": "Age, dress code", "at": 0.64 },
     { "path": "/gallery", "note": "86 photos", "at": 0.72 }
   ],
   "facts": [
-    { "label": "Venue", "value": "Techno & house club · 600 guests", "at": 0.08 },
+    { "label": "Venue", "value": "Rooftop club · 700 guests", "at": 0.08 },
     { "label": "Location", "value": "Klybeck, by the Rhine harbour", "at": 0.16 },
     { "label": "Tonight", "value": "Halloween: Masked, 23:00 till late", "at": 0.22 },
-    { "label": "Floors", "value": "Main Hall, Keller, Bar Room", "at": 0.36 },
+    { "label": "Floors", "value": "Entrance, Main Hall, Rooftop", "at": 0.36 },
     { "label": "Entry", "value": "CHF 20 presale · 25 at the door", "at": 0.5 },
-    { "label": "Floorplan", "value": "Rebuilt from 86 photos", "at": 0.78 }
+    { "label": "Building", "value": "3 floors rebuilt from 86 photos", "at": 0.78 }
   ],
   "profile": [
     { "key": "name", "label": "Name", "value": "Hafenlicht", "source": "/", "confidence": 99 },
-    { "key": "tagline", "label": "Tagline", "value": "Techno by the Rhine harbour", "source": "/", "confidence": 95 },
+    { "key": "tagline", "label": "Tagline", "value": "Techno above the Rhine harbour", "source": "/", "confidence": 95 },
     { "key": "address", "label": "Address", "value": "Hafenstrasse 8, 4057 Basel", "source": "/info", "confidence": 98 },
     { "key": "hours", "label": "Open", "value": "Thu – Sat, 23:00 – 06:00", "source": "/info", "confidence": 93 },
     { "key": "entry", "label": "Entry", "value": "CHF 20 presale, 25 at the door", "source": "/tickets", "confidence": 91 },
     { "key": "age", "label": "Age", "value": "18+, ID required", "source": "/house-rules", "confidence": 64 },
     { "key": "dress", "label": "Dress code", "value": "No sportswear", "source": "/house-rules", "confidence": 52 }
   ],
-  "spaces": [
+  "floors": [
+    {
+      "id": "rooftop",
+      "name": "Rooftop",
+      "level": 4,
+      "music": "House & disco",
+      "capacity": 250,
+      "rooms": [
+        { "name": "Terrace", "kind": "terrace", "rect": [-3.5, -2.5, 1, 2.5] },
+        { "name": "Sky Bar", "kind": "bar", "rect": [1, -2.5, 3.5, 2.5] }
+      ],
+      "walls": []
+    },
     {
       "id": "main-hall",
       "name": "Main Hall",
+      "level": 3,
       "music": "Techno",
       "capacity": 450,
-      "config": {
-        "wall": "concrete",
-        "floor": "concrete",
-        "light": "pink",
-        "areas": ["bar", "coat", "ball", "lasers"],
-        "layout": { "dancefloor": [0.25, 0.25], "booth": [0.25, -1.85], "bar": [-2.9, -0.4], "lounge": [2.6, 1.75], "coat": [-3, 1.75] }
-      }
+      "rooms": [
+        { "name": "Dancefloor", "kind": "dance", "rect": [-3.5, -2.5, 1.5, 2.5] },
+        { "name": "Bar", "kind": "bar", "rect": [1.5, -2.5, 3.5, 0.5] },
+        { "name": "Toilets", "kind": "toilets", "rect": [1.5, 0.5, 3.5, 2.5] }
+      ],
+      "walls": [[1.5, -2.5, 1.5, -1.6], [1.5, -0.4, 1.5, 1.1], [1.5, 1.9, 1.5, 2.5], [1.5, 0.5, 3.5, 0.5]]
     },
     {
-      "id": "keller",
-      "name": "Keller",
-      "music": "House & disco",
-      "capacity": 150,
-      "config": {
-        "wall": "brick",
-        "floor": "oak",
-        "light": "orange",
-        "areas": ["bar", "lounge", "ball"],
-        "layout": { "dancefloor": [-0.5, 0.25], "booth": [-0.5, -1.85], "bar": [-2.9, -0.4], "lounge": [2.6, 1.75], "coat": [-3, 1.75] }
-      }
-    },
-    {
-      "id": "bar-room",
-      "name": "Bar Room",
-      "music": "Disco & edits",
-      "capacity": 80,
-      "config": {
-        "wall": "black",
-        "floor": "rubber",
-        "light": "purple",
-        "areas": ["bar", "lounge"],
-        "layout": { "dancefloor": [0, 0], "booth": [0, -1.85], "bar": [-2.9, -0.4], "lounge": [2.6, 1.75], "coat": [-3, 1.75] }
-      }
+      "id": "entrance",
+      "name": "Entrance",
+      "level": 0,
+      "music": "Doors & coats",
+      "capacity": 120,
+      "rooms": [
+        { "name": "Lobby", "kind": "lobby", "rect": [-3.5, -2.5, 1, 2.5] },
+        { "name": "Coat check", "kind": "coat", "rect": [1, -2.5, 3.5, 2.5] }
+      ],
+      "walls": [[1, -2.5, 1, -0.6], [1, 0.6, 1, 2.5]]
     }
   ]
 }
