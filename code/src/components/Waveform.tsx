@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react'
 
-/** Live waveform for a microphone stream: clay bars driven by the real input level, mirrored around the middle. */
-export default function Waveform({ stream, bars = 32, className = 'h-6' }: {
+const randomLevels = (n: number) => Array.from({ length: n }, () => 0.15 + Math.random() * 0.85)
+
+/**
+ * Live waveform for a microphone stream: clay bars driven by the real input level, mirrored around the middle.
+ * mock: without a stream, bars jump to random heights instead (presentation mode).
+ */
+export default function Waveform({ stream, mock = false, bars = 32, className = 'h-6' }: {
   stream: MediaStream | null
+  mock?: boolean
   bars?: number
   className?: string
 }) {
   const [levels, setLevels] = useState(() => Array<number>(bars).fill(0.12))
+
+  useEffect(() => {
+    if (stream || !mock) return
+    const id = setInterval(() => setLevels(randomLevels(bars)), 120)
+    return () => clearInterval(id)
+  }, [stream, mock, bars])
 
   useEffect(() => {
     if (!stream) return

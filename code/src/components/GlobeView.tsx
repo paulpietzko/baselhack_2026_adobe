@@ -59,8 +59,8 @@ function highlightBuilding(m: mapboxgl.Map) {
     filter: ['==', ['id'], building.id],
     paint: {
       'fill-extrusion-color': GEM_COLOR,
-      // A little taller than real, so the club stands out
-      'fill-extrusion-height': ['*', ['get', 'height'], 1.15],
+      // True height, same as the grey buildings around it
+      'fill-extrusion-height': ['get', 'height'],
       'fill-extrusion-base': ['get', 'min_height'],
       'fill-extrusion-opacity': 1,
     },
