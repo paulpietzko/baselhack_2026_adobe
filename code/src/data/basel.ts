@@ -61,6 +61,7 @@ export const BASEL_PLACES: Place[] = [
     icon: Martini,
     tint: '#3a2433',
     iconColor: '#e09ac4',
+    image: '/bar.png',
     cardAngle: -30,
     cardDistance: 230,
   },
