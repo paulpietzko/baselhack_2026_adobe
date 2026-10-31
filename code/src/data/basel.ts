@@ -18,6 +18,8 @@ export type Place = {
   image?: string
   /** Hidden gem: only shown once unlocked (demo: press "a") */
   hidden?: boolean
+  /** Published by the owner through Acme */
+  verified?: boolean
 }
 
 export const BASEL_TITLE = 'Five places for your first day in Basel'

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
 import { BookOpen, Code, Coffee, Lightbulb, PenLine, Sparkles } from 'lucide-react'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
 import GlobeView from '../components/GlobeView'
-import { BASEL_TITLE } from '../data/basel'
+import { BASEL_PLACES, BASEL_TITLE } from '../data/basel'
+import { searchPlaces, type Answer } from '../data/search'
 
 const SUGGESTIONS = [
   { icon: PenLine, label: 'Write' },
@@ -28,6 +29,13 @@ export default function Home() {
   const [voice, setVoice] = useState(false)
   // Demo: pressing "a" unlocks the hidden gem (Club Rouge) on the map
   const [unlocked, setUnlocked] = useState(false)
+  // The agent's answer (real search, see server/agent.ts); null while it's searching
+  const [answer, setAnswer] = useState<Answer | null>(null)
+  const [failed, setFailed] = useState(false)
+  const places = useMemo(
+    () => answer && [...answer.places, ...(unlocked ? BASEL_PLACES.filter((p) => p.hidden) : [])],
+    [answer, unlocked],
+  )
   const ask = (text: string, viaVoice = false) => {
     setQuery(text)
     setUnlocked(false)
@@ -43,6 +51,23 @@ export default function Home() {
 
   useEffect(() => {
     if (!query) return
+    setAnswer(null)
+    setFailed(false)
+    const abort = new AbortController()
+    searchPlaces(query, abort.signal)
+      .then(setAnswer)
+      .catch((e) => {
+        if (abort.signal.aborted) return
+        // Search unavailable (no key, offline…): say so and show the demo picks
+        console.error(e)
+        setFailed(true)
+        setAnswer({ title: BASEL_TITLE, intro: '', places: BASEL_PLACES.filter((p) => !p.hidden) })
+      })
+    return () => abort.abort()
+  }, [query])
+
+  useEffect(() => {
+    if (!query) return
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
@@ -52,7 +77,7 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKey)
   }, [query])
 
-  // Mock answer: whatever was asked, Claude replies with the Basel globe right in the chat
+  // Claude answers with the map right in the chat: the agent searches, the globe spins until its picks arrive
   if (query) {
     return (
       <main className="flex min-h-0 flex-1 flex-col">
@@ -62,10 +87,15 @@ export default function Home() {
           <div className="pointer-events-auto relative z-10 mx-auto w-full max-w-3xl px-6 pt-8 sidebar-collapsed:hidden">
             <p className="ml-auto w-fit max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5">{query}</p>
             <p className="mt-6 flex w-fit items-center gap-2 rounded-full font-serif text-lg sidebar-collapsed:bg-bg/80 sidebar-collapsed:px-3 sidebar-collapsed:py-1 sidebar-collapsed:backdrop-blur">
-              <ClaudeLogo size={20} /> {BASEL_TITLE}
+              <span className={answer ? '' : 'animate-pulse'}>
+                <ClaudeLogo size={20} />
+              </span>
+              {answer ? answer.title : 'Searching Basel…'}
             </p>
+            {answer?.intro && <p className="mt-1 ml-7 text-sm text-muted">{answer.intro}</p>}
+            {failed && <p className="mt-1 ml-7 text-xs text-clay">Live search unavailable, showing demo picks.</p>}
           </div>
-          <GlobeView key={query} unlocked={unlocked} />
+          <GlobeView key={query} places={places} />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
           {unlocked && (

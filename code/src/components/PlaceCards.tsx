@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
+import { BadgeCheck } from 'lucide-react'
 import type { Place } from '../data/basel'
 
 const CARD_WIDTH = 220
@@ -8,6 +9,8 @@ const CARD_HEIGHT = 190 // approximate, used to keep cards on screen
 const SAFE = { top: 52, bottom: 16, side: 16 }
 // Full-width mode sits behind the top bar and messages, and fades out at the bottom
 const SAFE_FULL = { top: 200, bottom: 150, side: 24 }
+
+const GAP = 12 // min space between cards
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(min, max))
 
@@ -21,22 +24,37 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
     const update = () => {
       const { clientWidth: w, clientHeight: h } = map.getContainer()
       const safe = document.querySelector('[data-sidebar=collapsed]') ? SAFE_FULL : SAFE
-      setPositions(
-        places.map((place) => {
-          const marker = map.project(place.lngLat)
-          const rad = (place.cardAngle * Math.PI) / 180
-          const x = marker.x + Math.cos(rad) * place.cardDistance
-          const y = marker.y + Math.sin(rad) * place.cardDistance
-          return {
-            place,
-            marker: { x: marker.x, y: marker.y },
-            card: {
-              x: clamp(x, safe.side + CARD_WIDTH / 2, w - safe.side - CARD_WIDTH / 2),
-              y: clamp(y, safe.top + CARD_HEIGHT / 2, h - safe.bottom - CARD_HEIGHT / 2),
-            },
+      const keep = (c: { x: number; y: number }) => ({
+        x: clamp(c.x, safe.side + CARD_WIDTH / 2, w - safe.side - CARD_WIDTH / 2),
+        y: clamp(c.y, safe.top + CARD_HEIGHT / 2, h - safe.bottom - CARD_HEIGHT / 2),
+      })
+      const next = places.map((place) => {
+        const marker = map.project(place.lngLat)
+        const rad = (place.cardAngle * Math.PI) / 180
+        const card = keep({ x: marker.x + Math.cos(rad) * place.cardDistance, y: marker.y + Math.sin(rad) * place.cardDistance })
+        return { place, marker: { x: marker.x, y: marker.y }, card }
+      })
+      // Nudge overlapping cards apart (agent results can sit close together), along the axis that needs less
+      for (let pass = 0; pass < 40; pass++) {
+        let moved = false
+        for (let i = 0; i < next.length; i++)
+          for (let j = i + 1; j < next.length; j++) {
+            const a = next[i].card
+            const b = next[j].card
+            const ox = CARD_WIDTH + GAP - Math.abs(a.x - b.x)
+            const oy = CARD_HEIGHT + GAP - Math.abs(a.y - b.y)
+            if (ox <= 0 || oy <= 0) continue
+            moved = true
+            const [axis, push] = ox < oy ? (['x', ox] as const) : (['y', oy] as const)
+            const dir = a[axis] <= b[axis] ? 1 : -1
+            a[axis] -= (dir * push) / 2
+            b[axis] += (dir * push) / 2
+            next[i].card = keep(a)
+            next[j].card = keep(b)
           }
-        }),
-      )
+        if (!moved) break
+      }
+      setPositions(next)
     }
     update()
     map.on('move', update)
@@ -90,9 +108,16 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
               ) : (
                 <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
               )}
-              <span className="absolute top-2 right-2 rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
-                {place.time.replace(/^Tonight · /, '')}
-              </span>
+              {place.time && (
+                <span className="absolute top-2 right-2 max-w-[70%] truncate rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
+                  {place.time.replace(/^Tonight · /, '')}
+                </span>
+              )}
+              {place.verified && (
+                <span className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 backdrop-blur-md">
+                  <BadgeCheck size={12} /> Verified
+                </span>
+              )}
             </div>
             <div className="px-1.5 pt-2.5 pb-1">
               <h3 className="truncate text-[13.5px] leading-tight font-semibold" title={place.name}>
