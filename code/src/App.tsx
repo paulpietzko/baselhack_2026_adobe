@@ -13,8 +13,6 @@ export default function App() {
         <TopBar />
         <Routes>
           <Route path="/" element={<Home />} />
-          {/* Mock: every chat opens as an empty conversation */}
-          <Route path="/chat/:id" element={<Home />} />
           <Route path="/scene" element={<Scene />} />
           <Route path="/test-map" element={<TestMap />} />
         </Routes>
