@@ -14,7 +14,7 @@ const STOPS = [
   { name: club.name, time: '23:00', what: 'Dance it off till late', image: club.image ?? '', color: '#d97757', lngLat: club.lngLat },
 ]
 
-const LINE = '#d97757'
+const LINE = '#c6d3e6'
 const DRAW_MS = 2200
 // Start drawing once the camera has mostly zoomed out
 const DRAW_DELAY_MS = 1400
@@ -214,24 +214,25 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
 
       <button
         onClick={onBack}
-        className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
+        data-hand-back
+        className="spatial-glass pointer-events-auto absolute flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-accent top-16 left-6"
       >
         <ArrowLeft size={14} /> Back to {CASINO.name}
       </button>
 
       {/* The kick-off banner, until the crew says go */}
-      <div ref={bannerRef} className="absolute top-3 left-1/2 flex -translate-x-1/2 justify-center sidebar-collapsed:top-14">
+      <div ref={bannerRef} className="absolute left-1/2 flex -translate-x-1/2 justify-center top-14">
         {started ? (
           <span className="spatial-glass flex animate-pill-in items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap text-ink">
-            <PartyPopper size={15} className="text-clay" /> Night started. First stop: {STOPS[0].name}, {STOPS[0].time}
+            <PartyPopper size={15} className="text-accent" /> {STOPS[0].name}, {STOPS[0].time}
           </span>
         ) : (
           <div className="spatial-glass pointer-events-auto flex animate-pill-in items-center gap-2.5 rounded-full py-1 pr-1 pl-3 text-sm whitespace-nowrap text-ink" style={{ animationDelay: '2600ms' }}>
             <span aria-hidden>🎃</span>
-            <span className="font-medium">Dress up. Cash in. Dance it off.</span>
             <button
               onClick={() => setStarted(true)}
-              className="rounded-full bg-clay px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-clay-dark"
+              data-hand-hold
+              className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-bg transition-colors hover:bg-accent-dark"
             >
               Let's haunt
             </button>
@@ -240,10 +241,11 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
       </div>
 
       {/* Card rail: one per stop, the hovered one pops up (like the place cards) */}
-      <div ref={railRef} className="absolute inset-x-0 bottom-28 flex items-end justify-center gap-8 px-4 sidebar-collapsed:bottom-32">
+      <div ref={railRef} className="absolute inset-x-0 flex items-end justify-center gap-8 px-4 bottom-40">
         {STOPS.map((s, i) => (
           <article
             key={s.name}
+            data-hand-peek
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive(null)}
             className={`spatial-glass pointer-events-auto animate-card-in overflow-hidden rounded-[22px] text-ink transition-all duration-300 ${
@@ -262,9 +264,10 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
               </span>
             </div>
             <div className="px-3 pt-2 pb-2.5">
-              <h3 className={`leading-tight font-semibold ${active === i ? 'font-serif text-lg' : 'text-[14px]'}`}>{s.name}</h3>
+              <h3 className={`leading-tight font-semibold ${active === i ? 'font-display text-lg' : 'text-[14px]'}`}>{s.name}</h3>
+              <div className="peek-body"><div>
               <p className="text-[11.5px] text-muted">{s.what}</p>
-              <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-clay">
+              <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-accent">
                 {i === 0 ? (
                   <>
                     <MapPin size={12} /> Start here
@@ -275,6 +278,7 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
                   </>
                 )}
               </p>
+              </div></div>
             </div>
           </article>
         ))}

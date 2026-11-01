@@ -46,11 +46,11 @@ export const PIECES: Record<OutfitId, Piece[]> = {
   ],
 }
 
-/** Left on the rails tonight, per colour. The crew is four, so anything under 4 needs a plan B */
+/** Left on the rails tonight, per colour. The crew is three, so anything under 3 needs a plan B */
 export const STOCK: Record<OutfitId, Record<ColorId, number>> = {
   vampire: { crimson: 9, midnight: 6, emerald: 4 },
   skeleton: { crimson: 12, midnight: 12, emerald: 7 },
-  witch: { crimson: 5, midnight: 3, emerald: 4 },
+  witch: { crimson: 5, midnight: 2, emerald: 4 },
 }
 
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const

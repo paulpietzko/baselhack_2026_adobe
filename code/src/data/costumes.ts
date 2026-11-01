@@ -10,8 +10,8 @@ export const BUDGETS = [50, 100, null]
 /** Curated for the demo, not a live forecast */
 export const WEATHER = '4°C and dry tonight'
 
-/** Four people are going out; each figure has its own colour until they settle on a look */
-export const CREW_TONES = ['#d97757', '#bf5af2', '#0a84ff', '#30d158']
+/** Three people are going out; each figure has its own colour until they settle on a look */
+export const CREW_TONES = ['#a9bdd8', '#bf5af2', '#0a84ff']
 
 export const COLORS: { id: ColorId; name: string; hex: string }[] = [
   { id: 'crimson', name: 'Crimson', hex: '#c0142f' },

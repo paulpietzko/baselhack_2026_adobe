@@ -4,11 +4,9 @@ import { BadgeCheck } from 'lucide-react'
 import type { Place } from '../data/basel'
 
 const CARD_WIDTH = 220
-const CARD_HEIGHT = 190 // approximate, used to lay cards out
-// Where cards may land on arrival: clear of the edges and the location pill on top
-const SAFE = { top: 52, bottom: 16, side: 16 }
-// Full-width mode: the messages are hidden, so only keep clear of the top bar and location pill; fades out at the bottom
-const SAFE_FULL = { top: 120, bottom: 150, side: 24 }
+const CARD_HEIGHT = 130 // at rest, used to lay cards out; the details open on top of the map
+// Where cards may land on arrival: clear of the location pill on top and of Duck, with what it's saying, at the bottom
+const SAFE = { top: 72, bottom: 232, side: 24 }
 
 const GAP = 12 // min space between cards
 
@@ -35,7 +33,7 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
 
     // One-time layout in screen space: preferred angle from the data, kept on screen, overlaps pushed apart
     const { clientWidth: w, clientHeight: h } = map.getContainer()
-    const safe = document.querySelector('[data-sidebar=collapsed]') ? SAFE_FULL : SAFE
+    const safe = SAFE
     const keep = (c: { x: number; y: number }) => ({
       x: clamp(c.x, safe.side + CARD_WIDTH / 2, w - safe.side - CARD_WIDTH / 2),
       y: clamp(c.y, safe.top + CARD_HEIGHT / 2, h - safe.bottom - CARD_HEIGHT / 2),
@@ -82,7 +80,7 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
     // Small glowing dots in each place's colour, so pin and tile read as a pair
     const markers = places.map((p) => {
       const dot = document.createElement('span')
-      dot.className = 'block size-3.5 rounded-full ring-[3px] ring-white shadow-[0_0_0_6px_rgb(255_255_255/0.35),0_4px_10px_rgb(0_0_0/0.3)]'
+      dot.className = 'block size-3.5 rounded-full ring-[3px] ring-[#1d3040] shadow-[0_0_0_4px_rgb(246_243_236/0.45)]'
       dot.style.background = p.iconColor
       return new mapboxgl.Marker({ element: dot }).setLngLat(p.lngLat).addTo(map)
     })
@@ -114,12 +112,13 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
         return (
           <article
             key={place.id}
+            data-hand-peek
             className="pointer-events-auto absolute -translate-1/2"
             style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
           >
             <div
               className={`spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03] ${
-                place.hidden ? 'ring-2 ring-clay/70 shadow-[0_0_40px_rgb(217_119_87/0.45)]' : ''
+                place.hidden ? 'ring-2 ring-accent/70' : ''
               }`}
               style={{ animationDelay: '200ms' }}
             >
@@ -156,21 +155,25 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
                 <h3 className="truncate text-[13.5px] leading-tight font-semibold" title={place.name}>
                   {place.name}
                 </h3>
-                <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted">{place.description}</p>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
-                    {place.tag}
-                  </span>
-                  {place.url && (
-                    <a
-                      href={place.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark"
-                    >
-                      Details ›
-                    </a>
-                  )}
+                <div className="peek-body">
+                  <div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted">{place.description}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
+                        {place.tag}
+                      </span>
+                      {place.url && (
+                        <a
+                          href={place.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-[11px] font-semibold text-accent hover:text-accent-dark"
+                        >
+                          Details ›
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

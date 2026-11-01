@@ -6,7 +6,7 @@ const club = BASEL_PLACES.find((p) => p.id === HAFENLICHT_CLUB.id)!
 // Same glass tiles as the place cards, a little bigger
 const card = 'spatial-glass pointer-events-auto animate-card-in rounded-[26px] p-2 text-ink'
 // Fullscreen map (sidebar collapsed): clear the top bar; the chat input sits centred between the bottom cards
-const edges = 'top-4 bottom-4 sidebar-collapsed:top-16 sidebar-collapsed:bottom-6'
+const edges = 'top-16 bottom-6'
 
 const label = 'flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted uppercase'
 
@@ -18,7 +18,7 @@ export default function ClubDetails() {
     <div className="pointer-events-none absolute inset-0 font-system">
       {/* Bottom left: about the club */}
       <article
-        className={`${card} absolute bottom-4 left-4 w-[300px] sidebar-collapsed:bottom-6 sidebar-collapsed:left-6`}
+        className={`${card} absolute w-[300px] bottom-6 left-6`}
         style={{ animationDelay: '100ms' }}
       >
         {/* Photo header with the badges on top, like the place cards */}
@@ -66,7 +66,7 @@ export default function ClubDetails() {
       </article>
 
       {/* Right column: crowd on top, dress code at the bottom */}
-      <div className={`absolute ${edges} right-4 flex w-[280px] flex-col justify-between gap-3 sidebar-collapsed:right-6`}>
+      <div className={`absolute ${edges} flex w-[280px] flex-col justify-between gap-3 right-6`}>
         {/* Top right: tonight's crowd (like TripTune's visitor box) */}
         <article className={card} style={{ animationDelay: '400ms' }}>
           <div className="px-2 pt-2 pb-1.5">

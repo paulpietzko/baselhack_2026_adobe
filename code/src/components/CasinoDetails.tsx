@@ -7,7 +7,7 @@ import { CASINO, JACKPOT, TABLES } from '../data/casino'
 import { SHOP } from '../data/shop'
 
 const card = 'spatial-glass pointer-events-auto animate-card-in rounded-[26px] p-2 text-ink'
-const edges = 'top-4 bottom-4 sidebar-collapsed:top-16 sidebar-collapsed:bottom-6'
+const edges = 'top-16 bottom-6'
 const label = 'flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted uppercase'
 
 function meters([lng1, lat1]: [number, number], [lng2, lat2]: [number, number]) {
@@ -29,6 +29,7 @@ function JackpotBanner() {
 
   return (
     <article
+      data-hand-peek
       className="pointer-events-auto relative animate-card-in overflow-hidden rounded-[26px] p-4 text-black shadow-[0_0_40px_rgb(212_175_55/0.35)]"
       style={{ animationDelay: '500ms', background: `linear-gradient(135deg, #f7e08a, ${CASINO.color} 45%, #9a7414)` }}
     >
@@ -42,14 +43,16 @@ function JackpotBanner() {
           <span className="text-[10px] font-semibold tracking-wide uppercase opacity-70">Ad · {CASINO.name}</span>
         </div>
         <p className="mt-3 text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">{JACKPOT.title}</p>
-        <p className="font-serif text-[34px] leading-none font-semibold tabular-nums">
+        <p className="font-display text-[34px] leading-none font-semibold tabular-nums">
           CHF {jackpot.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
+        <div className="peek-body"><div>
         <p className="mt-1 text-[11.5px] font-medium">{JACKPOT.drop}</p>
         <div className="mt-3 flex items-center gap-2 rounded-2xl bg-black/85 px-3 py-2 text-[11.5px] font-semibold text-[#f7e08a]">
           <Gift size={15} className="shrink-0" />
           {JACKPOT.offer}
         </div>
+        </div></div>
         <p className="mt-2 text-[9.5px] opacity-70">{JACKPOT.fineprint}</p>
       </div>
     </article>
@@ -71,13 +74,14 @@ export default function CasinoDetails({ map, building, onBack }: { map: mapboxgl
       {/* Top left: back to the mall */}
       <button
         onClick={onBack}
-        className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
+        data-hand-back
+        className="spatial-glass pointer-events-auto absolute flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-accent top-16 left-6"
       >
         <ArrowLeft size={14} /> Back to {SHOP.name}
       </button>
 
       {/* Bottom left: the casino */}
-      <article className={`${card} absolute bottom-4 left-4 w-[300px] sidebar-collapsed:bottom-6 sidebar-collapsed:left-6`} style={{ animationDelay: '100ms' }}>
+      <article data-hand-peek className={`${card} absolute w-[300px] bottom-6 left-6`} style={{ animationDelay: '100ms' }}>
         <div className="relative h-32 overflow-hidden rounded-[20px] bg-[#17151c]">
           <img src={CASINO.image} alt={CASINO.name} className="absolute inset-0 size-full object-cover" />
           <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${CASINO.color}b3, transparent 60%)` }} />
@@ -87,10 +91,11 @@ export default function CasinoDetails({ map, building, onBack }: { map: mapboxgl
           <span className="absolute bottom-2 left-3 text-[11px] font-semibold text-white/80">{CASINO.kind}</span>
         </div>
         <div className="px-2 pt-3 pb-1.5">
-          <p className={label} style={{ color: CASINO.color }}>
+          <h3 className="text-[17px] leading-tight font-semibold">{CASINO.name}</h3>
+          <div className="peek-body"><div>
+          <p className={`${label} mt-1`} style={{ color: CASINO.color }}>
             <MapPin size={11} /> Basel · by the airport road
           </p>
-          <h3 className="mt-1 text-[17px] leading-tight font-semibold">{CASINO.name}</h3>
           <p className="mt-0.5 text-[11.5px] text-muted">{CASINO.address}</p>
           <dl className="mt-3 space-y-1.5 text-[11.5px]">
             {[
@@ -106,16 +111,18 @@ export default function CasinoDetails({ map, building, onBack }: { map: mapboxgl
               </div>
             ))}
           </dl>
+          </div></div>
         </div>
       </article>
 
       {/* Right column: tables on top, the door below */}
-      <div className={`absolute ${edges} right-4 flex w-[300px] flex-col justify-between gap-3 overflow-y-auto [scrollbar-width:none] sidebar-collapsed:right-6`}>
-        <article className={card} style={{ animationDelay: '300ms' }}>
+      <div className={`absolute ${edges} flex w-[300px] flex-col justify-between gap-3 overflow-y-auto [scrollbar-width:none] right-6`}>
+        <article data-hand-peek className={card} style={{ animationDelay: '300ms' }}>
           <div className="px-2 pt-2 pb-1.5">
             <p className={label}>
               <Spade size={12} /> Tables tonight
             </p>
+            <div className="peek-body"><div>
             <ul className="mt-2.5 space-y-2 text-[11.5px]">
               {TABLES.map((t, i) => (
                 <li key={t.game} className="flex animate-card-in items-center gap-2" style={{ animationDelay: `${450 + i * 90}ms` }}>
@@ -130,6 +137,7 @@ export default function CasinoDetails({ map, building, onBack }: { map: mapboxgl
                 </li>
               ))}
             </ul>
+            </div></div>
           </div>
         </article>
 

@@ -37,7 +37,7 @@ export const BASEL_PLACES: Place[] = [
     id: 'escape-room',
     name: 'Escape Room “Die Gruft”',
     time: 'Tonight · 18:00',
-    tag: 'Groups of 4–6',
+    tag: 'Groups of 3–6',
     description: '60 minutes to break out of a medieval crypt.',
     lngLat: [7.5751474526515326, 47.55743717864846],
     icon: Lock,

@@ -1,5 +1,5 @@
 {
-  "description": "Mock of the Claude chat UI with interactive embeds — a vision of the post-internet.",
+  "description": "DUCK: the web as a world that unfolds around your intent.",
   "robots": {
     "index": false
   },
@@ -7,8 +7,8 @@
     "addBypassLinks": false,
     "ignoreReducedMotion": false
   },
-  "title": "Dug",
+  "title": "DUCK",
   "icons": {
-    "icon": "/dug.svg"
+    "icon": "/favicon.svg"
   }
 }

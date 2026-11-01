@@ -20,13 +20,12 @@ const GLOW = '#d8ffe9'
 
 type Hair = 'short' | 'long' | 'curly' | 'bun'
 
-/** Four different people, not four clones: the top is their crew colour, the rest is what they'd wear anyway */
+/** Three different people, not three clones: the top is their crew colour, the rest is what they'd wear anyway */
 type Person = { skin: string; hair: Hair; hairColor: string; pants: string; shoes: string; longSleeves: boolean; height: number }
 const PEOPLE: Person[] = [
   { skin: '#e9c3a6', hair: 'short', hairColor: '#2a1b14', pants: '#2b3445', shoes: '#efefef', longSleeves: false, height: 1 },
   { skin: '#c99474', hair: 'long', hairColor: '#3d2416', pants: '#1f1f26', shoes: '#1a1a1a', longSleeves: true, height: 0.96 },
   { skin: '#8d5a3b', hair: 'curly', hairColor: '#141010', pants: '#3b4a5e', shoes: '#e8e1d6', longSleeves: false, height: 1.03 },
-  { skin: '#f1d2bd', hair: 'bun', hairColor: '#b9853f', pants: '#2e2a24', shoes: '#5a3a24', longSleeves: true, height: 0.95 },
 ]
 
 // Chest wider than the waist, rounding into the shoulders and the neck
@@ -311,7 +310,7 @@ function Witch({ color, phase }: { color: string; phase: number }) {
   )
 }
 
-/** One of the four. In their own clothes until a look is picked, then dressed in it. Dances a little. */
+/** One of the three. In their own clothes until a look is picked, then dressed in it. Dances a little. */
 function Figure({ tone, person, outfit, accent, phase }: { tone: string; person: Person; outfit: OutfitId | null; accent: string; phase: number }) {
   const shoulders = useRef<(Group | null)[]>([])
   const elbows = useRef<(Group | null)[]>([])

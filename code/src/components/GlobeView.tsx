@@ -63,8 +63,11 @@ function exclude(m: mapboxgl.Map, id: string | number, on: boolean) {
   m.setFilter('3d-buildings', ['all', EXTRUDED, ...[...ids].map((i) => ['!=', ['id'], i])] as unknown as mapboxgl.FilterSpecification)
 }
 
-/** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
-function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
+// The city's own buildings: dark slate, so the ones that matter can stand out
+const BUILDING = '#2b4151'
+
+/** 3D buildings like bako: dark extrusions from zoom 15, under the labels */
+function add3dBuildings(m: mapboxgl.Map) {
   if (m.getLayer('3d-buildings')) return
   const labelLayerId = m.getStyle()?.layers?.find((l) => l.type === 'symbol' && l.layout && 'text-field' in l.layout)?.id
   m.addLayer(
@@ -76,7 +79,7 @@ function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
       type: 'fill-extrusion',
       minzoom: 15,
       paint: {
-        'fill-extrusion-color': dark ? '#3a3a3c' : '#d6d3cc',
+        'fill-extrusion-color': BUILDING,
         'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']],
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']],
         // Fully opaque: a solid city like bako, no see-through walls
@@ -101,7 +104,7 @@ const at = (f: number, dm = 0) =>
   ['+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], f], dm] as unknown as mapboxgl.ExpressionSpecification
 
 /** Find the building under the gem: grey below, its top two floors in clay as separate, hoverable layers */
-function highlightBuilding(m: mapboxgl.Map, dark: boolean): ClubBuilding | undefined {
+function highlightBuilding(m: mapboxgl.Map): ClubBuilding | undefined {
   const p = m.project(GEM.lngLat)
   // Widen the search until we hit a building (the pin may sit on a street)
   let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
@@ -119,7 +122,7 @@ function highlightBuilding(m: mapboxgl.Map, dark: boolean): ClubBuilding | undef
     ...base,
     id: 'gem-building',
     paint: {
-      'fill-extrusion-color': dark ? '#3a3a3c' : '#d6d3cc',
+      'fill-extrusion-color': BUILDING,
       'fill-extrusion-base': ['get', 'min_height'],
       'fill-extrusion-height': at(CLUB_FROM),
       'fill-extrusion-opacity': 1,
@@ -256,10 +259,8 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
 }
 
 /**
- * Globe embedded in a Claude answer: spins until the agent's places arrive, flies to them, shows their cards.
- * No frame, like a Vision Pro persona:
- * - sidebar open: an inset, rounded window into the map that dissolves on every side
- * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
+ * The world behind everything: spins until the agent's places arrive, flies to them, shows their cards.
+ * It fills the screen with no frame, and fades into the blue at the bottom where Duck sits.
  */
 export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute, onArrive }: {
   places: Place[] | null
@@ -303,13 +304,12 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
 
   useEffect(() => {
     if (!map || !focused) return
-    const dark = document.documentElement.dataset.theme !== 'light'
-    add3dBuildings(map, dark)
+    add3dBuildings(map)
     map.flyTo({ ...GEM_CAMERA, duration: 3000, essential: true })
     let cleanupFloors: (() => void) | undefined
     // Wait for the zoomed-in building tiles to render before looking up the club's building
     const onIdle = () => {
-      const found = highlightBuilding(map, dark)
+      const found = highlightBuilding(map)
       if (!found) return
       setClub(found)
       cleanupFloors = makeClubFloorsInteractive(map, found.id, (floor) => onClubFloorsClickRef.current?.(floor))
@@ -328,7 +328,7 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
     }
   }, [map, focused])
 
-  // Upper clay floor is the Rooftop, lower the Main Hall (same mapping as Home)
+  // Upper lit floor is the Rooftop, lower the Main Hall (same mapping as Home)
   const floorLabels = useMemo<FloorLabel[]>(
     () => [
       { layerId: 'gem-floor-upper', from: 0.8, to: 1, title: 'Rooftop', subtitle: 'House & disco', side: 'left', onClick: () => onClubFloorsClickRef.current?.('upper') },
@@ -349,8 +349,7 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
   const shopColor = shop && COLORS.find((c) => c.id === shop.color)!.hex
   useEffect(() => {
     if (!map || !shopColor) return
-    const dark = document.documentElement.dataset.theme !== 'light'
-    add3dBuildings(map, dark)
+    add3dBuildings(map)
     map.flyTo({ ...SHOP_CAMERA, duration: SHOP_FLY_MS, essential: true })
     let cleanup: (() => void) | undefined
     const onIdle = () => {
@@ -382,8 +381,7 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
   const [atCasino, setAtCasino] = useState(false)
   useEffect(() => {
     if (!map || !toCasino) return
-    const dark = document.documentElement.dataset.theme !== 'light'
-    add3dBuildings(map, dark)
+    add3dBuildings(map)
     map.flyTo({ ...CASINO_CAMERA, duration: SHOP_FLY_MS, essential: true })
     let cleanup: (() => void) | undefined
     const onIdle = () => {
@@ -450,27 +448,37 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
   }, [loaded, places])
 
   return (
-    <div className={`pointer-events-auto relative mx-auto my-2 min-h-0 w-[92%] flex-1 sidebar-collapsed:fixed sidebar-collapsed:top-0 sidebar-collapsed:right-0 sidebar-collapsed:left-14 sidebar-collapsed:mt-0 sidebar-collapsed:h-screen sidebar-collapsed:w-auto ${floor ? '' : 'sidebar-collapsed:z-0'}`}>
+    <div className="absolute inset-0">
       {/* Wrapper does the positioning: mapbox-gl.css forces `position: relative` on the map element itself.
-          On a floor it breaks out to fill the screen behind the immersive view (Home drops its stacking context for this). */}
+          On a floor it covers everything else, behind the immersive view. */}
       <div
         className={`animate-globe-in transition-[filter] duration-1000 ${
           floor
             ? `fixed inset-0 z-30 bg-black ${FLOOR_MOOD[floor]}`
-            : 'persona-fade absolute inset-0 sidebar-collapsed:rounded-none sidebar-collapsed:[mask-image:linear-gradient(to_bottom,#000_65%,transparent_95%)]'
+            : 'absolute inset-0 [mask-image:linear-gradient(to_bottom,#000_65%,transparent_95%)]'
         }`}
       >
         <Globe className="size-full" onLoad={(m, stopSpin) => setLoaded({ map: m, stopSpin })} />
       </div>
+
+      <div aria-hidden className="pointer-events-none absolute inset-0 shadow-[inset_0_0_180px_60px_rgb(13_24_34/0.5)]" />
 
       {floor && onFloor &&
         createPortal(<ImmersiveFloor floor={floor} onFloor={onFloor} onClose={() => onFloor(null)} onWhereToGet={goShopping} />, document.body)}
 
       {map && places && !focused && <PlaceCards map={map} places={places} />}
 
-      {map && club && !floor && !shop && <ClubFloorLabels map={map} building={club} floors={floorLabels} />}
+      {map && club && !floor && !shop && (
+        <div className="club contents">
+          <ClubFloorLabels map={map} building={club} floors={floorLabels} />
+        </div>
+      )}
 
-      {arrivedAtGem && !shop && <ClubDetails />}
+      {arrivedAtGem && !shop && (
+        <div className="club contents">
+          <ClubDetails />
+        </div>
+      )}
 
       {/* Cards wait for the camera to land, like the club's */}
       {map && shop && atShop && !floor && !toCasino && <ShopDetails key={`${shop.outfit}-${shop.color}`} map={map} building={shopBuilding} choice={shop} onBack={leaveShop} />}
@@ -480,18 +488,18 @@ export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCa
       {map && showRoute && !floor && <RouteOverview map={map} onBack={leaveRoute} />}
 
       {searching !== null && (
-        <span className="spatial-glass absolute top-3 right-3 flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sidebar-collapsed:top-16 sidebar-collapsed:right-4">
+        <span className="spatial-glass absolute flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium top-16 right-4">
           <span className="relative flex size-2 shrink-0">
-            <span className="absolute inset-0 animate-ping rounded-full bg-clay/60" />
-            <span className="size-2 rounded-full bg-clay" />
+            <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
+            <span className="size-2 rounded-full bg-accent" />
           </span>
           <span className="truncate">{searching ? `Searching for ${searching}` : 'Searching…'}</span>
         </span>
       )}
 
       {map && !showRoute && (
-        <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
-          <MapPin size={14} className="text-clay" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : area}
+        <span className="absolute left-1/2 top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 spatial-glass rounded-full px-3 text-xs font-medium">
+          <MapPin size={14} className="text-accent" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : area}
         </span>
       )}
     </div>
