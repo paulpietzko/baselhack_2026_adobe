@@ -9,23 +9,6 @@ const SECONDS_PER_REVOLUTION = 120
 const MAX_SPIN_ZOOM = 5
 const SLOW_SPIN_ZOOM = 3
 
-// The real city at blue hour, like an atlas plate. Painted into the map's own layers rather than filtered over the canvas,
-// so what's added on top keeps its colour: the mall in the crew's look, the casino in gold.
-const ATLAS = { land: '#1d3040', park: '#223949', water: '#36566b', road: '#2f4557', mainRoad: '#425a6c', border: '#3f5566', text: '#93a5b5', halo: '#1d3040' }
-
-function paintAtlas(map: mapboxgl.Map) {
-  for (const layer of map.getStyle()?.layers ?? []) {
-    const { id, type } = layer
-    if (type === 'background') map.setPaintProperty(id, 'background-color', ATLAS.land)
-    else if (type === 'fill') map.setPaintProperty(id, 'fill-color', /water/.test(id) ? ATLAS.water : /park|landuse|landcover|pitch|national/.test(id) ? ATLAS.park : ATLAS.land)
-    else if (type === 'line') map.setPaintProperty(id, 'line-color', /water/.test(id) ? ATLAS.water : /motorway|trunk|primary/.test(id) ? ATLAS.mainRoad : /road|bridge|tunnel|street|path/.test(id) ? ATLAS.road : ATLAS.border)
-    else if (type === 'symbol') {
-      map.setPaintProperty(id, 'text-color', ATLAS.text)
-      map.setPaintProperty(id, 'text-halo-color', ATLAS.halo)
-    }
-  }
-}
-
 /**
  * Spinning Mapbox globe. Calls onLoad once the map is ready, with a function that
  * stops the spin for good (call it before your own flyTo, or the spin fights it).
@@ -42,9 +25,14 @@ export default function Globe({ className = '', controls = false, onLoad }: {
   useEffect(() => {
     if (!container.current || !TOKEN) return
     mapboxgl.accessToken = TOKEN
+    // Follow Claude's light/dark theme so the map blends into the chat, also when it's toggled later
+    const isDark = () => document.documentElement.dataset.theme !== 'light'
+    const styleFor = (dark: boolean) => `mapbox://styles/mapbox/${dark ? 'dark' : 'light'}-v11`
+    let dark = isDark()
+
     const map = new mapboxgl.Map({
       container: container.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: styleFor(dark),
       projection: 'globe',
       zoom: 2,
       center: [0, 20],
@@ -74,14 +62,23 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     }
 
     map.on('style.load', () => {
-      paintAtlas(map)
-      map.setFog({
-        color: 'rgb(29, 48, 64)',
-        'high-color': 'rgb(44, 66, 86)',
-        'horizon-blend': 0.1,
-        'space-color': 'rgb(17, 28, 39)',
-        'star-intensity': 0.3,
-      })
+      map.setFog(
+        dark
+          ? {
+              color: 'rgb(10, 20, 30)',
+              'high-color': 'rgb(20, 30, 50)',
+              'horizon-blend': 0.1,
+              'space-color': 'rgb(11, 11, 25)',
+              'star-intensity': 0.6,
+            }
+          : {
+              color: 'rgb(245, 244, 237)',
+              'high-color': 'rgb(200, 215, 235)',
+              'horizon-blend': 0.1,
+              'space-color': 'rgb(250, 249, 245)',
+              'star-intensity': 0,
+            },
+      )
     })
     map.on('load', () => {
       spinGlobe()
@@ -93,12 +90,20 @@ export default function Globe({ className = '', controls = false, onLoad }: {
     map.on('dragend', resume)
     map.on('touchend', resume)
     map.on('moveend', spinGlobe)
-    // Mapbox only follows window resizes, not its container's
+    // Mapbox only follows window resizes; the container also changes when the sidebar toggles
     const observer = new ResizeObserver(() => map.resize())
     observer.observe(container.current)
+    // Theme toggle: swap the style in place (markers are DOM and stay; fog is reapplied on style.load)
+    const themeObserver = new MutationObserver(() => {
+      if (isDark() === dark) return
+      dark = isDark()
+      map.setStyle(styleFor(dark))
+    })
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
     return () => {
       observer.disconnect()
+      themeObserver.disconnect()
       map.remove()
     }
   }, [controls])

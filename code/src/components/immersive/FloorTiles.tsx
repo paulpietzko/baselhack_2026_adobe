@@ -54,7 +54,7 @@ function Peek({ id, icon: Icon, title, headline, open, onToggle, children }: {
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-clay/20"><Icon size={21} className="text-clay" /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] text-muted">{title}</span>
-          <span className="block font-display text-[21px] leading-tight">{headline}</span>
+          <span className="block font-serif text-[21px] leading-tight">{headline}</span>
         </span>
         <ChevronRight size={18} className={`shrink-0 text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
       </button>
@@ -145,7 +145,7 @@ export function OutfitTiles({ floor, choice, onBudget, onVibe, onPick, onColor, 
             <Row active={choice.outfit === o.id} onClick={() => onPick(o.id)}>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-display text-xl">{o.name}</span>
+                  <span className="font-serif text-xl">{o.name}</span>
                   <span className="text-sm text-muted tabular-nums">CHF {o.price}</span>
                 </span>
                 <span className="mt-0.5 block text-[13px] leading-snug text-muted">{door(o).ok ? o.onFloor[floor] : door(o).reason}</span>

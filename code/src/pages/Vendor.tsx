@@ -61,7 +61,7 @@ function Published({ name, floors, onClose }: { name: string; floors: number; on
         </p>
         <div className="mt-5 rounded-2xl bg-black/[0.04] p-3 text-left text-sm">
           <p className="text-xs text-neutral-500">A question that now finds you</p>
-          <p className="mt-1">"Where can we go out in Basel tonight for Halloween?"</p>
+          <p className="mt-1">"Where can I go out in Basel tonight for Halloween?"</p>
         </div>
         <div className="mt-6 flex gap-2 text-sm">
           <button onClick={onClose} className="flex-1 rounded-full bg-black/[0.06] py-2.5 font-medium hover:bg-black/10">

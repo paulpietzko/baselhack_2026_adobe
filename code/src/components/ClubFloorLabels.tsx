@@ -79,14 +79,14 @@ export default function ClubFloorLabels({ map, building, floors }: { map: mapbox
           onClick={f.onClick}
           onMouseEnter={() => hover(f.layerId, true)}
           onMouseLeave={() => hover(f.layerId, false)}
-          className={`group spatial-glass absolute top-0 left-0 z-10 flex animate-fade-in items-center gap-3 overflow-hidden rounded-[20px] py-2.5 text-left text-ink outline outline-1 outline-transparent transition-[outline-color] duration-300 hover:outline-clay/70 [&.hand-focus]:outline-clay/70 ${
+          className={`group spatial-glass absolute top-0 left-0 z-10 flex animate-fade-in items-center gap-3 overflow-hidden rounded-[20px] py-2.5 text-left text-ink outline outline-1 outline-transparent transition-[outline-color] duration-300 hover:outline-clay/70 ${
             f.side === 'left' ? 'pr-3.5 pl-4' : 'flex-row-reverse pr-4 pl-3.5'
           }`}
         >
           {/* Hover: a warm clay wash fades in behind the text, nothing moves */}
-          <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-clay/25 to-clay/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-[.hand-focus]:opacity-100" />
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-clay/25 to-clay/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <span className="relative">
-            <span className="block font-display text-base leading-tight whitespace-nowrap transition-colors duration-300 group-hover:text-clay group-[.hand-focus]:text-clay">{f.title}</span>
+            <span className="block font-serif text-base leading-tight whitespace-nowrap transition-colors duration-300 group-hover:text-clay">{f.title}</span>
             <span className="block text-xs whitespace-nowrap text-muted">{f.subtitle}</span>
           </span>
           <span className="relative size-2.5 rounded-full bg-clay shadow-[0_0_10px_2px_rgb(217_119_87/0.6)] transition-shadow duration-300 group-hover:shadow-[0_0_18px_6px_rgb(217_119_87/0.95)]" />

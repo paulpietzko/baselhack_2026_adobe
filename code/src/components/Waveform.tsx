@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 const randomLevels = (n: number) => Array.from({ length: n }, () => 0.15 + Math.random() * 0.85)
 
 /**
- * Live waveform for a microphone stream: accent bars driven by the real input level, mirrored around the middle.
+ * Live waveform for a microphone stream: clay bars driven by the real input level, mirrored around the middle.
  * mock: without a stream, bars jump to random heights instead (presentation mode).
  */
 export default function Waveform({ stream, mock = false, bars = 32, className = 'h-6' }: {
@@ -47,7 +47,7 @@ export default function Waveform({ stream, mock = false, bars = 32, className = 
   return (
     <div className={`flex items-center gap-[3px] ${className}`} aria-hidden>
       {levels.map((h, i) => (
-        <span key={i} className="w-[3px] rounded-full bg-accent" style={{ height: `${h * 100}%` }} />
+        <span key={i} className="w-[3px] rounded-full bg-clay" style={{ height: `${h * 100}%` }} />
       ))}
     </div>
   )

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Volume2, VolumeX, X } from 'lucide-react'
-import { DuckMark } from '../duck/Duck'
+import ClaudeLogo from '../ClaudeLogo'
 import Scene, { H, LIGHTS, type Framing } from '../acme/Venue'
 import { ClubNight, Lens } from './Club'
 import { CrewFigures } from './Crew'
@@ -9,9 +9,6 @@ import { vendor } from '../../data/vendor'
 import { FLOORS, FLOOR_EXTRAS, HAFENLICHT, type FloorId } from '../../data/floors'
 import { COLORS, outfitById, type OutfitId } from '../../data/costumes'
 import { nightSound, type Mix } from '../../lib/nightSound'
-
-// How long the crew stands in its new look before heading to the shop
-const TRY_ON_MS = 2200
 
 /** Looking at the floor, or trying on costumes with the crew */
 type Mode = 'floor' | 'outfit'
@@ -56,8 +53,6 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
   const [mode, setMode] = useState<Mode>('floor')
   // The look is remembered across floors, like the rest of the night
   const [choice, setChoice] = useState<OutfitChoice>(NO_CHOICE)
-  const leaving = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(leaving.current), [])
   const extra = FLOOR_EXTRAS[floor]
   const outfit = outfitById(choice.outfit)
 
@@ -102,12 +97,6 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
     setChoice((c) => ({ ...c, outfit: id }))
     setReply(`${o.name}. ${o.onFloor[floor]}.`)
   }
-  // One sentence for two steps: the crew changes first, so the look lands, and then it's off to the shop
-  const witchesToTheShop = () => {
-    pick('witch')
-    clearTimeout(leaving.current)
-    leaving.current = setTimeout(() => onWhereToGet?.({ ...choice, outfit: 'witch' }), TRY_ON_MS)
-  }
   const outfitHandlers = {
     onBudget: (max: number | null) => {
       setChoice((c) => ({ ...c, budget: max }))
@@ -133,7 +122,7 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
             choice.outfit === 'witch' ? { label: 'Let’s go vampire', run: () => pick('vampire') } : { label: 'Witch couture', run: () => pick('witch') },
           ]
         : [
-            { label: 'Where could we get some witch costumes?', run: witchesToTheShop },
+            { label: 'Witch couture', run: () => pick('witch') },
             { label: 'Let’s go vampire', run: () => pick('vampire') },
           ]
       : tile === 'dress'
@@ -166,7 +155,7 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
           ]
 
   return (
-    <div className="immersive club fixed inset-0 z-40 animate-[fade-in_700ms_ease-out_500ms_both] overflow-hidden font-system">
+    <div className="immersive fixed inset-0 z-40 animate-[fade-in_700ms_ease-out_500ms_both] overflow-hidden font-system">
       {/* Transparent over the map: on the roof the city is the view, indoors the walls close it off */}
       <div className="pointer-events-none absolute inset-0">
         <Scene
@@ -222,7 +211,7 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
         <button onClick={() => setSound((s) => !s)} aria-label={sound ? 'Mute' : 'Unmute'} className={roundBtn}>
           {sound ? <Volume2 size={19} /> : <VolumeX size={19} />}
         </button>
-        <button onClick={onClose} aria-label="Leave" data-hand-back className={roundBtn}>
+        <button onClick={onClose} aria-label="Leave" className={roundBtn}>
           <X size={19} />
         </button>
       </div>
@@ -239,14 +228,14 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
         )}
       </aside>
 
-      <div className="absolute bottom-36 left-6 z-10 max-w-2xl font-sans" style={{ right: TILES_WIDTH + 16 }}>
-        <p key={reply} className="animate-card-in mb-4 flex gap-3 font-display text-[26px] leading-[1.2] text-white [text-shadow:0_2px_12px_rgb(0_0_0/0.95)]">
-          <span className="mt-1 shrink-0"><DuckMark size={24} /></span>
+      <div className="absolute bottom-8 left-6 z-10 max-w-2xl font-sans" style={{ right: TILES_WIDTH + 16 }}>
+        <p key={reply} className="animate-card-in mb-4 flex gap-3 font-serif text-[26px] leading-[1.2] text-white [text-shadow:0_2px_12px_rgb(0_0_0/0.95)]">
+          <span className="mt-1 shrink-0"><ClaudeLogo size={24} /></span>
           {reply}
         </p>
         <div className="flex flex-wrap gap-2">
-          {chips.map((c, i) => (
-            <button key={c.label} onClick={c.run} data-next-line={i === 0 || undefined} className="spatial-glass rounded-full px-4 py-2 text-sm font-medium transition-colors hover:text-clay">
+          {chips.map((c) => (
+            <button key={c.label} onClick={c.run} className="spatial-glass rounded-full px-4 py-2 text-sm font-medium transition-colors hover:text-clay">
               {c.label}
             </button>
           ))}

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type mapboxgl from 'mapbox-gl'
-import { ArrowLeft, Check, Clock, Footprints, MapPin, PackageCheck, ShoppingBag, Sparkles, TriangleAlert } from 'lucide-react'
-import { DuckMark } from './duck/Duck'
+import { ArrowLeft, Check, Clock, Footprints, MapPin, PackageCheck, Shirt, ShoppingBag, Sparkles, TriangleAlert } from 'lucide-react'
+import ClaudeLogo from './ClaudeLogo'
 import type { ClubBuilding } from './ClubFloorLabels'
-import { COLORS, CREW_TONES, outfitById } from '../data/costumes'
+import { COLORS, outfitById } from '../data/costumes'
 import { PIECES, SHOP, SHOP_LEVELS, SIZES, STOCK } from '../data/shop'
 import { BASEL_PLACES, HAFENLICHT_CLUB } from '../data/basel'
 import type { OutfitChoice } from './immersive/FloorTiles'
 
-const CREW = CREW_TONES.length
+const CREW = 4
 const card = 'spatial-glass pointer-events-auto animate-card-in rounded-[26px] p-2 text-ink'
-const edges = 'top-16 bottom-6'
+const edges = 'top-4 bottom-4 sidebar-collapsed:top-16 sidebar-collapsed:bottom-6'
 const label = 'flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted uppercase'
 
 const EARTH_M = 40075016.686
@@ -105,14 +105,13 @@ export default function ShopDetails({ map, building, choice, onBack }: {
       {/* Top left: back to the club */}
       <button
         onClick={onBack}
-        data-hand-back
-        className="spatial-glass pointer-events-auto absolute flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-accent top-16 left-6"
+        className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
       >
         <ArrowLeft size={14} /> Back to {club.name}
       </button>
 
       {/* Bottom left: the mall */}
-      <article data-hand-peek className={`${card} absolute w-[300px] bottom-6 left-6`} style={{ animationDelay: '100ms' }}>
+      <article className={`${card} absolute bottom-4 left-4 w-[300px] sidebar-collapsed:bottom-6 sidebar-collapsed:left-6`} style={{ animationDelay: '100ms' }}>
         <div
           className="relative h-32 overflow-hidden rounded-[20px] bg-[#17151c]"
         >
@@ -125,11 +124,10 @@ export default function ShopDetails({ map, building, choice, onBack }: {
           <span className="absolute bottom-2 left-3 text-[11px] font-semibold text-white/80">{SHOP.kind}</span>
         </div>
         <div className="px-2 pt-3 pb-1.5">
-          <h3 className="text-[17px] leading-tight font-semibold">{SHOP.name}</h3>
-          <div className="peek-body"><div>
-          <p className={`${label} mt-1 text-accent`}>
+          <p className={`${label} text-clay`}>
             <MapPin size={11} /> {SHOP.popUp}
           </p>
+          <h3 className="mt-1 text-[17px] leading-tight font-semibold">{SHOP.name}</h3>
           <p className="mt-0.5 text-[11.5px] text-muted">{SHOP.address}</p>
           <dl className="mt-3 space-y-1.5 text-[11.5px]">
             {[
@@ -144,21 +142,23 @@ export default function ShopDetails({ map, building, choice, onBack }: {
               </div>
             ))}
           </dl>
-          <p className="mt-3 rounded-xl bg-accent/12 px-2.5 py-1.5 text-[11px] font-medium text-accent">
+          <p className="mt-3 rounded-xl bg-clay/12 px-2.5 py-1.5 text-[11px] font-medium text-clay">
             Halloween late opening: change here, walk straight to the doors at 23:00.
           </p>
-          </div></div>
         </div>
       </article>
 
       {/* Right column: the look on top, the route through the store below */}
-      <div className={`absolute ${edges} flex w-[300px] flex-col gap-3 overflow-y-auto [scrollbar-width:none] right-6`}>
-        <article data-hand-peek className={card} style={{ animationDelay: '300ms' }}>
+      <div className={`absolute ${edges} right-4 flex w-[300px] flex-col gap-3 overflow-y-auto [scrollbar-width:none] sidebar-collapsed:right-6`}>
+        <article className={card} style={{ animationDelay: '300ms' }}>
           <div className="px-2 pt-2 pb-1.5">
+            <p className={label}>
+              <Shirt size={12} /> Your look
+            </p>
             <div className="mt-1.5 flex items-center gap-3">
               <span className="size-10 shrink-0 rounded-2xl ring-1 ring-white/20" style={{ background: `linear-gradient(135deg, ${color.hex}, #0b0b0f)` }} />
               <div className="min-w-0 flex-1">
-                <h3 className="font-display text-xl leading-tight">{outfit.name}</h3>
+                <h3 className="font-serif text-xl leading-tight">{outfit.name}</h3>
                 <p className="text-[11.5px] text-muted">
                   in {color.name} · {outfit.vibe}
                 </p>
@@ -169,7 +169,6 @@ export default function ShopDetails({ map, building, choice, onBack }: {
               </span>
             </div>
 
-            <div className="peek-body"><div>
             <ul className="mt-3 space-y-1.5 border-t border-ink/10 pt-2.5 text-[11.5px]">
               {pieces.map((p, i) => (
                 <li key={p.name} className="flex animate-card-in items-center gap-2" style={{ animationDelay: `${450 + i * 90}ms` }}>
@@ -185,11 +184,10 @@ export default function ShopDetails({ map, building, choice, onBack }: {
               {short ? <TriangleAlert size={13} className="mt-px shrink-0" /> : <Check size={13} className="mt-px shrink-0" strokeWidth={3} />}
               <span>
                 {short
-                  ? `Only ${stock} left in ${color.name}. The rest in ${fallback.name}? Still meets the door.`
+                  ? `Only ${stock} left in ${color.name}. The fourth one in ${fallback.name}? Still meets the door.`
                   : `${stock} left in ${color.name}, enough for all ${CREW} of you.`}
               </span>
             </div>
-            </div></div>
 
             <div className="mt-3 flex items-center gap-1">
               {SIZES.map((s) => (
@@ -206,8 +204,7 @@ export default function ShopDetails({ map, building, choice, onBack }: {
             <button
               onClick={() => setHeld(true)}
               disabled={held}
-              data-hand-hold
-              className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-3 text-[13px] font-semibold transition-colors ${held ? 'bg-emerald-600 text-white' : 'bg-accent text-bg hover:bg-accent-dark'}`}
+              className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-3 text-[13px] font-semibold text-white transition-colors ${held ? 'bg-emerald-600' : 'bg-clay hover:bg-clay-dark'}`}
             >
               {held ? (
                 <>
@@ -223,12 +220,11 @@ export default function ShopDetails({ map, building, choice, onBack }: {
           </div>
         </article>
 
-        <article data-hand-peek className={card} style={{ animationDelay: '500ms' }}>
+        <article className={card} style={{ animationDelay: '500ms' }}>
           <div className="px-2 pt-2 pb-1.5">
             <p className={label}>
-              <Footprints size={12} /> Route inside
+              <Footprints size={12} /> Route inside · top to bottom
             </p>
-            <div className="peek-body"><div>
             <ol className="relative mt-2.5 space-y-3 pl-5">
               {/* The escalator line the route walks down */}
               <span aria-hidden className="absolute top-1.5 bottom-1.5 left-[5px] w-px" style={{ background: `linear-gradient(${color.hex}, transparent)` }} />
@@ -242,11 +238,10 @@ export default function ShopDetails({ map, building, choice, onBack }: {
             </ol>
             <p className="mt-3 flex gap-2 border-t border-ink/10 pt-2.5 text-[11.5px] leading-snug">
               <span className="mt-0.5 shrink-0">
-                <DuckMark size={14} />
+                <ClaudeLogo size={14} />
               </span>
               Changing rooms are on Level 1, so you can walk out already in costume.
             </p>
-            </div></div>
           </div>
         </article>
       </div>
