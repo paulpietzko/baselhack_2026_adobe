@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUp, Keyboard, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowUp, Keyboard, LoaderCircle, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
 import { useSpeech } from '../hooks/useSpeech'
 
@@ -25,7 +25,10 @@ export default function ChatInput({
   compact = false,
   voiceMode = false,
   onEndVoice,
+  thinking,
 }: {
+  /** The agent is working out what was said: show this with a spinner instead of the placeholder */
+  thinking?: string
   /** viaMock: sent by the presentation mock, so the conversation continues in the voice bar */
   onSend?: (text: string, viaMock?: boolean) => void
   placeholder?: string
@@ -47,6 +50,13 @@ export default function ChatInput({
   const listening = speech.listening || mock
   const heardText = mock ? mockText : speech.text
   const heardFinal = mock ? mockText === MOCK_TRANSCRIPT : speech.final
+
+  const thinkingLine = thinking && (
+    <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted">
+      <LoaderCircle size={15} className="shrink-0 animate-spin text-clay" />
+      <span className="truncate">{thinking}</span>
+    </span>
+  )
 
   const startMock = () => {
     setMockText('')
@@ -96,15 +106,20 @@ export default function ChatInput({
     const barBtn = 'grid size-10 place-items-center rounded-xl border border-border text-muted hover:bg-hover hover:text-ink'
     return (
       <div className="flex justify-center">
-        <div className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur">
-          <Waveform stream={speech.stream} mock bars={10} className="h-5 shrink-0" />
-          <input
-            value={text}
-            placeholder="Ask a follow-up..."
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-          />
+        <div
+          className="flex w-full max-w-md animate-bar-in items-center gap-3 rounded-2xl border border-border bg-surface/95 py-2 pr-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur"
+        >
+          {!thinking && <Waveform stream={speech.stream} mock bars={10} className="h-5 shrink-0" />}
+          {thinkingLine ?? (
+            <input
+              value={text}
+              placeholder="Ask a follow-up..."
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+            />
+          )}
+          <div className={`flex items-center gap-3 transition-opacity duration-300 ${thinking ? 'pointer-events-none opacity-40' : ''}`}>
           <button
             aria-label="Type instead"
             onClick={() => {
@@ -121,6 +136,7 @@ export default function ChatInput({
           <button aria-label="Mock voice input (presentation)" title="Mock voice (presentation)" onClick={startMock} className={barBtn}>
             <Presentation size={16} />
           </button>
+          </div>
           <button
             onClick={() => {
               setText('')
@@ -144,7 +160,7 @@ export default function ChatInput({
           onClick={() => setOpen(true)}
           className="flex cursor-text items-center gap-1 rounded-full border border-border bg-surface py-1.5 pr-1.5 pl-4 shadow-[0_4px_20px_rgba(0,0,0,0.18)] hover:border-border-strong"
         >
-          <span className="flex-1 truncate text-sm text-muted">{placeholder}</span>
+          {thinkingLine ?? <span className="flex-1 truncate text-sm text-muted">{placeholder}</span>}
           <button
             aria-label="Voice input"
             onClick={(e) => {

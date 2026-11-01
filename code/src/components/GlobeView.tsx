@@ -261,12 +261,14 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute }: {
+export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute, onArrive }: {
   places: Place[] | null
   /** Presentation mock: always fly to the hand-tuned BASEL_CAMERA instead of fitting the places */
   fixedCamera?: boolean
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
+  /** The camera has finished a demo transition (club, mall, casino, route) */
+  onArrive?: () => void
   /** While the agent searches: what it's looking up right now ('' before its first step); null when done */
   searching?: string | null
   /** Clicked one of the club's two floors on top of its building */
@@ -294,6 +296,8 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
   // Latest handler without re-running the fly-in effect
   const onClubFloorsClickRef = useRef(onClubFloorsClick)
   onClubFloorsClickRef.current = onClubFloorsClick
+  const onArriveRef = useRef(onArrive)
+  onArriveRef.current = onArrive
 
   useEffect(() => {
     if (!map || !focused) return
@@ -310,6 +314,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
     }
     const onArrive = () => {
       setArrivedAtGem(true)
+      onArriveRef.current?.()
       map.once('idle', onIdle)
     }
     map.once('moveend', onArrive)
@@ -350,6 +355,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
       const found = highlightRising(map, SHOP.lngLat, 'shop-building', shopColor)
       setShopBuilding(found.building)
       setAtShop(true)
+      onArriveRef.current?.()
       cleanup = found.cleanup
     }
     const onArrive = () => map.once('idle', onIdle)
@@ -382,6 +388,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
       const found = highlightRising(map, CASINO.lngLat, 'casino-building', CASINO.color)
       setCasinoBuilding(found.building)
       setAtCasino(true)
+      onArriveRef.current?.()
       cleanup = found.cleanup
     }
     const onArrive = () => map.once('idle', onIdle)
@@ -395,6 +402,15 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
     }
   }, [map, toCasino])
   const showRoute = route && toCasino && atCasino
+  // RouteOverview zooms out over the night when it mounts (child effects run first, so this catches its moveend)
+  useEffect(() => {
+    if (!map || !showRoute) return
+    const done = () => onArriveRef.current?.()
+    map.once('moveend', done)
+    return () => {
+      map.off('moveend', done)
+    }
+  }, [map, showRoute])
   const leaveRoute = () => {
     onRoute?.(false)
     map?.flyTo({ ...CASINO_CAMERA, duration: SHOP_FLY_MS, essential: true })

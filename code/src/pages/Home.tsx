@@ -24,6 +24,15 @@ const SUGGESTIONS = [
 const INTENTS = ['Techno', 'Hardcore']
 const CASINO_INTENTS = ['Roulette', 'Black Jack', 'Poker']
 
+// Demo steps ("a" or a click): while the camera flies to the next stop, the bar shows what the agent is doing
+type Pending = 'gem' | 'shop' | 'casino' | 'route'
+const THINKING: Record<Pending, string> = {
+  gem: 'Finding a hidden gem…',
+  shop: 'Finding your look…',
+  casino: 'Finding the next stop…',
+  route: 'Planning your night…',
+}
+
 const greeting = () => {
   const h = new Date().getHours()
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
@@ -45,6 +54,8 @@ export default function Home() {
   const [casino, setCasino] = useState(false)
   // …and once more at the casino zooms out over the whole night: mall → casino → club
   const [route, setRoute] = useState(false)
+  // A demo transition is under way (cleared when GlobeView's camera arrives)
+  const [pending, setPending] = useState<Pending | null>(null)
   useEffect(() => {
     setFocused(false)
     setFloor(null)
@@ -67,6 +78,7 @@ export default function Home() {
   const ask = (text: string, viaMock = false) => {
     setQuery(text)
     setUnlocked(false)
+    setPending(null)
     if (viaMock) setVoice(true)
   }
   // "New chat" navigates to / again: start over
@@ -79,6 +91,7 @@ export default function Home() {
     setRoute(false)
     setVoice(false)
     setUnlocked(false)
+    setPending(null)
   }, [key])
 
   useEffect(() => {
@@ -104,16 +117,24 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key.toLowerCase() !== 'a') return
-      // At the mall: on to the casino; otherwise unlock the hidden gem
+      if (e.key.toLowerCase() !== 'a' || pending) return
+      // At the mall: on to the casino (then the night's route); otherwise unlock the hidden gem
       if (look && !floor) {
-        if (casino) setRoute(true)
-        else setCasino(true)
-      } else setUnlocked(true)
+        if (!casino) {
+          setCasino(true)
+          setPending('casino')
+        } else if (!route) {
+          setRoute(true)
+          setPending('route')
+        }
+      } else if (!unlocked) {
+        setUnlocked(true)
+        setPending('gem')
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [query, look, floor, casino])
+  }, [query, look, floor, casino, route, unlocked, pending])
 
   // Claude answers with the map right in the chat: the agent searches, the globe spins until its picks arrive
   if (query) {
@@ -146,6 +167,7 @@ export default function Home() {
             onFloor={setFloor}
             onShop={(choice) => {
               setLook(choice)
+              setPending(choice ? 'shop' : null)
               if (!choice) {
                 setCasino(false)
                 setRoute(false)
@@ -154,10 +176,15 @@ export default function Home() {
             casino={casino}
             onCasino={(on) => {
               setCasino(on)
+              setPending(on ? 'casino' : null)
               if (!on) setRoute(false)
             }}
             route={route}
-            onRoute={setRoute}
+            onRoute={(on) => {
+              setRoute(on)
+              setPending(on ? 'route' : null)
+            }}
+            onArrive={() => setPending(null)}
           />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
@@ -213,6 +240,7 @@ export default function Home() {
               onSend={ask}
               placeholder={`Reply to ${BRAND}…`}
               voiceMode={voice}
+              thinking={pending ? THINKING[pending] : undefined}
               onEndVoice={() => setVoice(false)}
             />
           )}
