@@ -43,11 +43,14 @@ export default function Home() {
   const [look, setLook] = useState<OutfitChoice | null>(null)
   // Demo: pressing "a" again at the mall flies on to the casino
   const [casino, setCasino] = useState(false)
+  // …and once more at the casino zooms out over the whole night: mall → casino → club
+  const [route, setRoute] = useState(false)
   useEffect(() => {
     setFocused(false)
     setFloor(null)
     setLook(null)
     setCasino(false)
+    setRoute(false)
     if (!unlocked) return
     const t = setTimeout(() => setFocused(true), 1050 + 500)
     return () => clearTimeout(t)
@@ -73,6 +76,7 @@ export default function Home() {
     setFloor(null)
     setLook(null)
     setCasino(false)
+    setRoute(false)
     setVoice(false)
     setUnlocked(false)
   }, [key])
@@ -102,12 +106,14 @@ export default function Home() {
       if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key.toLowerCase() !== 'a') return
       // At the mall: on to the casino; otherwise unlock the hidden gem
-      if (look && !floor) setCasino(true)
-      else setUnlocked(true)
+      if (look && !floor) {
+        if (casino) setRoute(true)
+        else setCasino(true)
+      } else setUnlocked(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [query, look, floor])
+  }, [query, look, floor, casino])
 
   // Claude answers with the map right in the chat: the agent searches, the globe spins until its picks arrive
   if (query) {
@@ -140,14 +146,23 @@ export default function Home() {
             onFloor={setFloor}
             onShop={(choice) => {
               setLook(choice)
-              if (!choice) setCasino(false)
+              if (!choice) {
+                setCasino(false)
+                setRoute(false)
+              }
             }}
             casino={casino}
-            onCasino={setCasino}
+            onCasino={(on) => {
+              setCasino(on)
+              if (!on) setRoute(false)
+            }}
+            route={route}
+            onRoute={setRoute}
           />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
-          {unlocked && (() => {
+          {/* No pills over the night's overview: its cards already list the stops */}
+          {unlocked && !(route && casino && look) && (() => {
             // At the casino its games; at the mall the pills follow the look; otherwise the club's intents
             const atCasino = casino && !!look
             const outfit = look && outfitById(look.outfit)

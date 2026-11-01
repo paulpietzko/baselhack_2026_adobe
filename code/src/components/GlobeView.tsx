@@ -14,6 +14,7 @@ import { COLORS } from '../data/costumes'
 import { SHOP } from '../data/shop'
 import { CASINO } from '../data/casino'
 import CasinoDetails from './CasinoDetails'
+import RouteOverview from './RouteOverview'
 import { BASEL_CAMERA, BASEL_PLACES, HAFENLICHT_CLUB, type Place } from '../data/basel'
 
 // Web Mercator y (0 at the top, 1 at the bottom) for a latitude
@@ -260,7 +261,7 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino }: {
+export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute }: {
   places: Place[] | null
   /** Presentation mock: always fly to the hand-tuned BASEL_CAMERA instead of fitting the places */
   fixedCamera?: boolean
@@ -280,6 +281,10 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
   casino?: boolean
   /** Back from the casino to the mall */
   onCasino?: (on: boolean) => void
+  /** Zoomed out over the whole night: mall → casino → club (only once we're at the casino) */
+  route?: boolean
+  /** Back from the overview to the casino */
+  onRoute?: (on: boolean) => void
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -389,6 +394,11 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
       setAtCasino(false)
     }
   }, [map, toCasino])
+  const showRoute = route && toCasino && atCasino
+  const leaveRoute = () => {
+    onRoute?.(false)
+    map?.flyTo({ ...CASINO_CAMERA, duration: SHOP_FLY_MS, essential: true })
+  }
   const leaveCasino = () => {
     onCasino?.(false)
     map?.flyTo({ ...SHOP_CAMERA, duration: SHOP_FLY_MS, essential: true })
@@ -447,7 +457,9 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
       {/* Cards wait for the camera to land, like the club's */}
       {map && shop && atShop && !floor && !toCasino && <ShopDetails key={`${shop.outfit}-${shop.color}`} map={map} building={shopBuilding} choice={shop} onBack={leaveShop} />}
 
-      {map && toCasino && atCasino && !floor && <CasinoDetails map={map} building={casinoBuilding} onBack={leaveCasino} />}
+      {map && toCasino && atCasino && !floor && !showRoute && <CasinoDetails map={map} building={casinoBuilding} onBack={leaveCasino} />}
+
+      {map && showRoute && !floor && <RouteOverview map={map} onBack={leaveRoute} />}
 
       {searching !== null && (
         <span className="spatial-glass absolute top-3 right-3 flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sidebar-collapsed:top-16 sidebar-collapsed:right-4">
@@ -459,7 +471,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
         </span>
       )}
 
-      {map && (
+      {map && !showRoute && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
           <MapPin size={14} className="text-clay" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
         </span>
