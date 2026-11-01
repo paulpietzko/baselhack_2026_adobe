@@ -261,8 +261,10 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute, onArrive }: {
+export default function GlobeView({ places, area = 'Basel, Switzerland', fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino, route = false, onRoute, onArrive }: {
   places: Place[] | null
+  /** Where the places are, shown on the map once it arrives */
+  area?: string
   /** Presentation mock: always fly to the hand-tuned BASEL_CAMERA instead of fitting the places */
   fixedCamera?: boolean
   /** Zoom into the hidden gem in 3D and show its detail cards */
@@ -489,7 +491,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
 
       {map && !showRoute && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
-          <MapPin size={14} className="text-clay" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
+          <MapPin size={14} className="text-clay" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : area}
         </span>
       )}
     </div>

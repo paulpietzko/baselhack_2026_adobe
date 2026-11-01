@@ -32,36 +32,55 @@ const LOOKS: Record<Icon, [LucideIcon, string, string]> = {
   building: [Building2, '#4a2226', '#e8828a'],
 }
 
-export type Answer = { title: string; intro: string; places: Place[] }
+/** area: where the agent searched, e.g. "Zürich, Switzerland" */
+export type Answer = { title: string; intro: string; area: string; places: Place[] }
+
+type Events = {
+  /** Each live search step, e.g. "night clubs, bars in Basel" */
+  onStep: (label: string) => void
+  /** Street photos that arrive after the answer: place id → photo taken nearby */
+  onPhotos: (photos: Record<string, string>) => void
+}
 
 /**
  * Ask the search agent (server route, see server/agent.ts) and turn its picks into map cards.
- * `onStep` gets each live search step, e.g. "night clubs, bars".
+ * Resolves as soon as the answer is there; street photos for places without their own keep coming via `onPhotos`.
  */
-export async function searchPlaces(query: string, onStep: (label: string) => void, signal?: AbortSignal): Promise<Answer> {
-  const res = await fetch('/api/search', { method: 'POST', body: JSON.stringify({ query }), signal })
-  if (!res.body) throw new Error(`Search failed (${res.status})`)
-
-  // Newline-delimited JSON events: {step} while searching, then {result} or {error}
-  let data: SearchResult | undefined
-  let buffer = ''
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
-  for (;;) {
-    const { value, done } = await reader.read()
-    buffer += value ?? ''
-    const lines = buffer.split('\n')
-    // Keep a partial last line for the next chunk; at the end, it's the last event (or a plain JSON error)
-    buffer = done ? '' : lines.pop()!
-    for (const line of lines.filter(Boolean)) {
-      const event = JSON.parse(line) as { step?: string; result?: SearchResult; error?: string }
-      if (event.error) throw new Error(event.error)
-      if (event.step) onStep(event.step)
-      if (event.result) data = event.result
+export function searchPlaces(query: string, { onStep, onPhotos }: Events, signal?: AbortSignal): Promise<Answer> {
+  return new Promise((resolve, reject) => {
+    let answered = false
+    const read = async () => {
+      const res = await fetch('/api/search', { method: 'POST', body: JSON.stringify({ query }), signal })
+      if (!res.body) throw new Error(`Search failed (${res.status})`)
+      // Newline-delimited JSON events: {step} while searching, {result}, later {photos}; or {error}
+      let buffer = ''
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+      for (;;) {
+        const { value, done } = await reader.read()
+        buffer += value ?? ''
+        const lines = buffer.split('\n')
+        // Keep a partial last line for the next chunk; at the end, it's the last event (or a plain JSON error)
+        buffer = done ? '' : lines.pop()!
+        for (const line of lines.filter(Boolean)) {
+          const event = JSON.parse(line) as { step?: string; result?: SearchResult; photos?: Record<string, string>; error?: string }
+          if (event.error) throw new Error(event.error)
+          if (event.step) onStep(event.step)
+          if (event.photos) onPhotos(event.photos)
+          if (event.result) {
+            answered = true
+            resolve(toAnswer(event.result))
+          }
+        }
+        if (done) break
+      }
+      if (!answered) throw new Error(`Search failed (${res.status})`)
     }
-    if (done) break
-  }
-  if (!data) throw new Error(`Search failed (${res.status})`)
+    // After the answer, a failing photo stream just means fewer photos
+    read().catch((e) => !answered && reject(e))
+  })
+}
 
+function toAnswer(data: SearchResult): Answer {
   // Cards point away from the middle of the group, so they fan out around their pins
   const cx = data.places.reduce((s, p) => s + p.lngLat[0], 0) / (data.places.length || 1)
   const cy = data.places.reduce((s, p) => s + p.lngLat[1], 0) / (data.places.length || 1)
@@ -69,6 +88,7 @@ export async function searchPlaces(query: string, onStep: (label: string) => voi
   return {
     title: data.title,
     intro: data.intro,
+    area: data.area,
     places: data.places.map((p) => {
       const [icon, tint, iconColor] = LOOKS[p.icon] ?? LOOKS.building
       const dx = p.lngLat[0] - cx
@@ -85,6 +105,7 @@ export async function searchPlaces(query: string, onStep: (label: string) => voi
         iconColor,
         verified: p.verified,
         image: p.image ?? undefined,
+        imageNearby: p.imageNearby,
         url: p.url ?? undefined,
         cardAngle: dx || dy ? (Math.atan2(dy, dx) * 180) / Math.PI : -90,
         cardDistance: 150,

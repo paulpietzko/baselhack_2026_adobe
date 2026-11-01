@@ -100,14 +100,18 @@ export default function Home() {
     setFailed(false)
     setStep(null)
     const abort = new AbortController()
-    searchPlaces(query, setStep, abort.signal)
+    const onPhotos = (photos: Record<string, string>) =>
+      setAnswer((a) =>
+        a && { ...a, places: a.places.map((p) => (photos[p.id] && !p.image ? { ...p, image: photos[p.id], imageNearby: true } : p)) },
+      )
+    searchPlaces(query, { onStep: setStep, onPhotos }, abort.signal)
       .then(setAnswer)
       .catch((e) => {
         if (abort.signal.aborted) return
         // Search unavailable (no key, offline…): say so and show the demo picks
         console.error(e)
         setFailed(true)
-        setAnswer({ title: BASEL_TITLE, intro: '', places: BASEL_PLACES.filter((p) => !p.hidden) })
+        setAnswer({ title: BASEL_TITLE, intro: '', area: 'Basel, Switzerland', places: BASEL_PLACES.filter((p) => !p.hidden) })
       })
     return () => abort.abort()
   }, [query])
@@ -150,12 +154,13 @@ export default function Home() {
               <span className={answer ? '' : 'animate-pulse'}>
                 <ClaudeLogo size={20} />
               </span>
-              {answer ? answer.title : 'Searching Basel…'}
+              {answer ? answer.title : 'Searching…'}
             </p>
             {answer?.intro && <p className="mt-1 ml-7 text-sm text-muted">{answer.intro}</p>}
             {failed && <p className="mt-1 ml-7 text-xs text-clay">Live search unavailable, showing demo picks.</p>}
           </div>
           <GlobeView
+            area={answer?.area}
             key={query}
             places={places}
             fixedCamera={voice}

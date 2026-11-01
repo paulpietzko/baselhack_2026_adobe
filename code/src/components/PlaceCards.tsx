@@ -26,6 +26,9 @@ const HIDE_BELOW = 0.8
  */
 export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places: Place[] }) {
   const [positions, setPositions] = useState<Positioned[]>([])
+  // Lay out again only when the set of places changes, not when a photo arrives later
+  const ids = places.map((p) => p.id).join()
+  const latest = new Map(places.map((p) => [p.id, p]))
 
   useEffect(() => {
     const showFrom = map.getZoom() - HIDE_BELOW
@@ -88,7 +91,7 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
       map.off('resize', update)
       markers.forEach((m) => m.remove())
     }
-  }, [map, places])
+  }, [map, ids]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden font-system">
@@ -106,66 +109,74 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
         ))}
       </svg>
 
-      {positions.map(({ place, card }) => (
-        <article
-          key={place.id}
-          className="pointer-events-auto absolute -translate-1/2"
-          style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
-        >
-          <div
-            className={`spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03] ${
-              place.hidden ? 'ring-2 ring-clay/70 shadow-[0_0_40px_rgb(217_119_87/0.45)]' : ''
-            }`}
-            style={{ animationDelay: '200ms' }}
+      {positions.map(({ place: laidOut, card }) => {
+        const place = latest.get(laidOut.id) ?? laidOut
+        return (
+          <article
+            key={place.id}
+            className="pointer-events-auto absolute -translate-1/2"
+            style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
           >
-            {/* Inset header: photo, or the place's tint with its icon */}
-            <div className="relative grid h-20 place-items-center overflow-hidden rounded-[20px]" style={{ background: place.tint }}>
-              {/* Icon underneath: shows if there's no photo or the photo fails to load (hotlink blocked etc.) */}
-              <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
-              {place.image && (
-                <img
-                  src={place.image}
-                  alt={place.name}
-                  referrerPolicy="no-referrer"
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                  className="absolute inset-0 size-full object-cover"
-                />
-              )}
-              {place.time && (
-                <span className="absolute top-2 right-2 max-w-[70%] truncate rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
-                  {place.time.replace(/^Tonight · /, '')}
-                </span>
-              )}
-              {place.verified && (
-                <span className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 backdrop-blur-md">
-                  <BadgeCheck size={12} /> Verified
-                </span>
-              )}
-            </div>
-            <div className="px-1.5 pt-2.5 pb-1">
-              <h3 className="truncate text-[13.5px] leading-tight font-semibold" title={place.name}>
-                {place.name}
-              </h3>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted">{place.description}</p>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
-                  {place.tag}
-                </span>
-                {place.url && (
-                  <a
-                    href={place.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark"
-                  >
-                    Details ›
-                  </a>
+            <div
+              className={`spatial-glass animate-card-in rounded-[26px] p-2 text-ink transition-transform duration-300 hover:scale-[1.03] ${
+                place.hidden ? 'ring-2 ring-clay/70 shadow-[0_0_40px_rgb(217_119_87/0.45)]' : ''
+              }`}
+              style={{ animationDelay: '200ms' }}
+            >
+              {/* Inset header: photo, or the place's tint with its icon */}
+              <div className="relative grid h-20 place-items-center overflow-hidden rounded-[20px]" style={{ background: place.tint }}>
+                {/* Icon underneath: shows if there's no photo or the photo fails to load (hotlink blocked etc.) */}
+                <place.icon size={26} strokeWidth={1.5} style={{ color: place.iconColor }} />
+                {place.image && (
+                  <img
+                    src={place.image}
+                    alt={place.name}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                    className="absolute inset-0 size-full object-cover"
+                  />
+                )}
+                {place.image && place.imageNearby && (
+                  <span className="absolute bottom-1.5 left-2 rounded-full bg-black/40 px-1.5 py-px text-[9px] font-medium text-white/90 backdrop-blur-md">
+                    Nearby
+                  </span>
+                )}
+                {place.time && (
+                  <span className="absolute top-2 right-2 max-w-[70%] truncate rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums backdrop-blur-md">
+                    {place.time.replace(/^Tonight · /, '')}
+                  </span>
+                )}
+                {place.verified && (
+                  <span className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 backdrop-blur-md">
+                    <BadgeCheck size={12} /> Verified
+                  </span>
                 )}
               </div>
+              <div className="px-1.5 pt-2.5 pb-1">
+                <h3 className="truncate text-[13.5px] leading-tight font-semibold" title={place.name}>
+                  {place.name}
+                </h3>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted">{place.description}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="truncate rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted">
+                    {place.tag}
+                  </span>
+                  {place.url && (
+                    <a
+                      href={place.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-[11px] font-semibold text-clay hover:text-clay-dark"
+                    >
+                      Details ›
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </article>
-      ))}
+          </article>
+        )
+      })}
     </div>
   )
 }

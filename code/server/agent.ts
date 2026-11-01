@@ -1,5 +1,5 @@
 /**
- * Local-search agent: an OpenAI model with tool calling looks up real places in Basel
+ * Local-search agent: an OpenAI model with tool calling looks up real places in any city (Basel by default)
  * (OpenStreetMap via the free Nominatim API) plus the businesses published through Acme,
  * then recommends a handful. Coordinates always come from the tools, never from the model.
  *
@@ -36,17 +36,21 @@ export type SearchPlace = {
   verified: boolean
   /** Real photo: from OSM/Wikimedia or the place's own website */
   image: string | null
+  /** The photo was taken near the place (street or building), not of the place itself */
+  imageNearby: boolean
   /** Where "Details" goes: the place's website, else its OpenStreetMap page */
   url: string | null
 }
-export type SearchResult = { title: string; intro: string; places: SearchPlace[] }
+/** area: where it searched, e.g. "Zürich, Switzerland" */
+export type SearchResult = { title: string; intro: string; area: string; places: SearchPlace[] }
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini'
-// Basel city: west,north,east,south
-const VIEWBOX = '7.55,47.60,7.65,47.53'
+type Area = { label: string; viewbox: string } // viewbox: west,north,east,south
+const BASEL: Area = { label: 'Basel, Switzerland', viewbox: '7.55,47.60,7.65,47.53' }
+const areas = new Map<string, Area>([['basel', BASEL]])
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search'
 // OSM services want an identifiable client
-const USER_AGENT = 'baselhack-2026-post-website-demo/1.0'
+const USER_AGENT = 'baselhack-2026-post-website-demo/1.0 (https://github.com/paulpietzko/baselhack_2026_adobe)'
 
 type Candidate = {
   id: string
@@ -65,11 +69,28 @@ type Candidate = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Real places from OpenStreetMap via Nominatim (free; 1 request/second per their usage policy) */
-async function searchPlaces(phrases: string[]): Promise<Candidate[]> {
+/** Bounding box of a city or neighbourhood, looked up once via Nominatim */
+async function areaOf(name: string | undefined): Promise<Area> {
+  const key = (name ?? '').trim().toLowerCase()
+  if (!key) return BASEL
+  const known = areas.get(key)
+  if (known) return known
+  const params = new URLSearchParams({ q: name!, format: 'jsonv2', limit: '1', addressdetails: '1', 'accept-language': 'en' })
+  const res = await fetch(`${NOMINATIM}?${params}`, { headers: { 'User-Agent': USER_AGENT } })
+  const [hit] = res.ok ? ((await res.json()) as { name: string; boundingbox: string[]; address?: { country?: string } }[]) : []
+  if (!hit) throw new Error(`Unknown place: ${name}`)
+  const [south, north, west, east] = hit.boundingbox
+  const area = { label: [hit.name, hit.address?.country].filter(Boolean).join(', '), viewbox: `${west},${north},${east},${south}` }
+  areas.set(key, area)
+  await sleep(1100) // Nominatim: one request per second
+  return area
+}
+
+async function searchPlaces(phrases: string[], area: Area): Promise<Candidate[]> {
   const found: Candidate[] = []
   for (const [i, q] of phrases.slice(0, 3).entries()) {
     if (i) await sleep(1100)
-    const params = new URLSearchParams({ q, format: 'jsonv2', viewbox: VIEWBOX, bounded: '1', limit: '30', extratags: '1' })
+    const params = new URLSearchParams({ q, format: 'jsonv2', viewbox: area.viewbox, bounded: '1', limit: '30', extratags: '1' })
     const res = await fetch(`${NOMINATIM}?${params}`, { headers: { 'User-Agent': USER_AGENT } })
     if (!res.ok) throw new Error(`Nominatim ${res.status}`)
     const rows = (await res.json()) as {
@@ -122,10 +143,10 @@ const TOOLS = [
     function: {
       name: 'search_places',
       description:
-        'Find real, named places in Basel from OpenStreetMap. Pass 1–3 English category phrases in plural, e.g. "clothes shops", "shoe shops", "second hand shops", "night clubs", "bars", "pubs", "restaurants", "italian restaurants", "cafes", "bakeries", "museums", "cinemas", "parks" – or a business name.',
+        'Find real, named places from OpenStreetMap. Pass 1–3 English category phrases in plural, e.g. "clothes shops", "shoe shops", "second hand shops", "night clubs", "bars", "pubs", "restaurants", "italian restaurants", "cafes", "bakeries", "museums", "cinemas", "parks" – or a business name. Pass the city (or neighbourhood) to search in as `area`, e.g. "Zürich"; leave it empty for Basel.',
       parameters: {
         type: 'object',
-        properties: { phrases: { type: 'array', items: { type: 'string' } } },
+        properties: { phrases: { type: 'array', items: { type: 'string' } }, area: { type: 'string' } },
         required: ['phrases'],
         additionalProperties: false,
       },
@@ -136,7 +157,7 @@ const TOOLS = [
     function: {
       name: 'acme_listings',
       description:
-        'Businesses that publish their own verified data (hours, prices, tonight’s events) through Acme. Check this for nightlife, going out and events.',
+        'Businesses in Basel that publish their own verified data (hours, prices, tonight’s events) through Acme. Check this for nightlife, going out and events in Basel.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
@@ -190,13 +211,14 @@ const ANSWER_SCHEMA = {
 export async function search(query: string, onStep?: (label: string) => void): Promise<SearchResult> {
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set')
   const candidates = new Map<string, Candidate>()
+  let area = BASEL // where the last place search ran
   const now = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Zurich', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
   const messages: Message[] = [
     {
       role: 'system',
-      content: `You are a local guide inside a chat assistant. The user is in Basel, Switzerland. It is ${now} (Halloween).
-Find places that genuinely match the request using the tools: search_places for real places, and acme_listings when it is about going out or tonight.
-Then recommend 3 to 6 places, spread over the city when possible, and only ids you got from a tool.
+      content: `You are a local guide inside a chat assistant. The user is in Basel, Switzerland, unless they ask about another place. It is ${now} (Halloween).
+Find places that genuinely match the request using the tools: search_places for real places (with the asked city as \`area\`), and acme_listings when it is about going out in Basel.
+Then recommend 3 to 6 places, spread over the area when possible, and only ids you got from a tool. Never recommend places outside the place the user asked about.
 Prefer places whose opening hours fit the request. Acme listings are verified by their owners; include them when they fit.
 Answer in the language of the user's message.`,
     },
@@ -211,9 +233,16 @@ Answer in the language of the user's message.`,
     for (const call of reply.tool_calls) {
       let found: Candidate[] = []
       try {
-        const phrases: string[] = call.function.name === 'search_places' ? (JSON.parse(call.function.arguments).phrases ?? []) : []
-        onStep?.(phrases.length ? phrases.join(', ') : 'verified Acme listings')
-        found = phrases.length ? await searchPlaces(phrases) : acmeListings()
+        const args = call.function.name === 'search_places' ? (JSON.parse(call.function.arguments) as { phrases?: string[]; area?: string }) : {}
+        const phrases = args.phrases ?? []
+        if (phrases.length) {
+          area = await areaOf(args.area)
+          onStep?.(`${phrases.join(', ')} in ${area.label.split(',')[0]}`)
+          found = await searchPlaces(phrases, area)
+        } else {
+          onStep?.('verified Acme listings')
+          found = acmeListings()
+        }
       } catch (e) {
         messages.push({ role: 'tool', tool_call_id: call.id, content: `Error: ${(e as Error).message}` })
         continue
@@ -245,9 +274,10 @@ Answer in the language of the user's message.`,
       lngLat: [c.lon, c.lat] as [number, number],
       verified: c.verified,
       ...(await photoAndLink(c)),
+      imageNearby: false,
     })),
   )
-  return { title: answer.title, intro: answer.intro, places }
+  return { title: answer.title, intro: answer.intro, area: area.label, places }
 }
 
 // ─── Photos & links ──────────────────────────────────────────────────────────
@@ -282,16 +312,69 @@ async function wikidata(id: string | undefined) {
   })
 }
 
-/** Link and first real photo we can find: OSM image tag → Wikimedia Commons → Wikidata (place, then brand) → website preview */
+/**
+ * Link and first own photo we can find: OSM image tag → Wikimedia Commons → Wikidata of the place → website preview.
+ * A brand's Wikidata only gives the link: its photo is usually the headquarters, not this shop.
+ */
 async function photoAndLink(c: Candidate): Promise<{ image: string | null; url: string | null }> {
   const t = c.tags ?? {}
-  const item = (await wikidata(t.wikidata)) ?? (await wikidata(t['brand:wikidata']))
-  const website = websiteOf(c) ?? item?.website ?? null
+  const place = await wikidata(t.wikidata)
+  const brand = place ? null : await wikidata(t['brand:wikidata'])
+  const website = websiteOf(c) ?? place?.website ?? brand?.website ?? null
   const url = website ?? (c.id.startsWith('acme/') ? null : `https://www.openstreetmap.org/${c.id}`)
-  if (/^https?:\/\//.test(t.image ?? '')) return { image: t.image, url }
-  if (t.wikimedia_commons?.startsWith('File:')) return { image: commonsFile(t.wikimedia_commons), url }
-  if (item?.image) return { image: commonsFile(item.image), url }
-  return { image: website ? await previewImage(website) : null, url }
+  const image =
+    (/^https?:\/\//.test(t.image ?? '') ? t.image : null) ??
+    (t.wikimedia_commons?.startsWith('File:') ? commonsFile(t.wikimedia_commons) : null) ??
+    (place?.image ? commonsFile(place.image) : null) ??
+    (website ? await previewImage(website) : null)
+  return { image, url }
+}
+
+const COMMONS = 'https://commons.wikimedia.org/w/api.php'
+
+/**
+ * Street photos for places that found no photo of their own: id → free Commons photo taken within 150 m.
+ * Slow (Commons search takes seconds and is sometimes busy), so the API sends these after the result.
+ */
+export async function nearbyFor(places: SearchPlace[]): Promise<Record<string, string>> {
+  const missing = places.filter((p) => !p.image && !p.verified)
+  const photos = await nearbyPhotos(missing.map((p) => p.lngLat))
+  return Object.fromEntries(missing.flatMap((p, i) => (photos[i] ? [[p.id, photos[i]]] : [])))
+}
+
+/**
+ * For each point, a free Commons photo taken within 150 m, different ones where possible.
+ * Commons rate-limits bursts, so: light geosearches two at a time, then one request for the chosen thumbnails.
+ */
+async function nearbyPhotos(points: [number, number][]): Promise<(string | null)[]> {
+  const nearest = async ([lon, lat]: [number, number]) => {
+    const params = new URLSearchParams({ action: 'query', list: 'geosearch', gscoord: `${lat}|${lon}`, gsradius: '150', gsnamespace: '6', gslimit: '6', format: 'json' })
+    const once = () =>
+      fetchWithin(`${COMMONS}?${params}`, 4000, async (r) =>
+        ((await r.json()) as { query?: { geosearch: { title: string }[] } }).query?.geosearch.map((g) => g.title).filter((t) => /\.(jpe?g|png|webp)$/i.test(t)),
+      )
+    // null means throttled or failed: one more try after a short pause
+    return (await once()) ?? (await sleep(800).then(once)) ?? []
+  }
+  const candidates: string[][] = []
+  for (let i = 0; i < points.length; i += 2) candidates.push(...(await Promise.all(points.slice(i, i + 2).map(nearest))))
+
+  // Prefer a different photo for each place
+  const used = new Set<string>()
+  const titles = candidates.map((list) => {
+    const pick = list.find((t) => !used.has(t)) ?? list[0] ?? null
+    if (pick) used.add(pick)
+    return pick
+  })
+  const wanted = [...new Set(titles.filter(Boolean))] as string[]
+  if (!wanted.length) return titles.map(() => null)
+  const params = new URLSearchParams({ action: 'query', titles: wanted.join('|'), prop: 'imageinfo', iiprop: 'url', iiurlwidth: '480', format: 'json' })
+  const thumbs =
+    (await fetchWithin(`${COMMONS}?${params}`, 5000, async (r) => {
+      const pages = Object.values(((await r.json()) as { query?: { pages: Record<string, { title: string; imageinfo?: { thumburl: string }[] }> } }).query?.pages ?? {})
+      return new Map(pages.map((p) => [p.title, p.imageinfo?.[0]?.thumburl ?? null]))
+    })) ?? new Map()
+  return titles.map((t) => (t ? (thumbs.get(t) ?? null) : null))
 }
 
 /** The share image a site declares for itself (og:image / twitter:image) */
@@ -299,8 +382,11 @@ function previewImage(website: string) {
   return fetchWithin(website, 3500, async (r) => {
     const html = (await r.text()).slice(0, 300_000)
     const meta =
-      html.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*content=["']([^"']+)["']/i)?.[1] ??
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i)?.[1]
-    return meta ? new URL(meta.replace(/&amp;/g, '&'), r.url).href : null
+      html.match(/<meta[^>]+(?:property|name|itemprop)=["'](?:og:image(?::secure_url)?|twitter:image|image)["'][^>]*content=["']([^"']+)["']/i)?.[1] ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name|itemprop)=["'](?:og:image|twitter:image|image)["']/i)?.[1] ??
+      html.match(/<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)["']/i)?.[1]
+    // Some sites ship broken tags like content="undefined"
+    if (!meta || !/^(https?:)?\/|^[\w-]+\.(jpe?g|png|webp)/i.test(meta.trim())) return null
+    return new URL(meta.replace(/&amp;/g, '&'), r.url).href
   })
 }

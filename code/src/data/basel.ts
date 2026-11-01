@@ -16,6 +16,8 @@ export type Place = {
   cardAngle: number
   cardDistance: number
   image?: string
+  /** The photo shows the street or building around the place, not the place itself */
+  imageNearby?: boolean
   /** Where "Details" goes (the place's own website, or its map entry) */
   url?: string
   /** Hidden gem: only shown once unlocked (demo: press "a") */
