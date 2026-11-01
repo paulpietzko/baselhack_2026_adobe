@@ -30,7 +30,13 @@ const WALK_MIN = Math.round(WALK_M / 80)
  * A glowing tag floating on the roof of the mall, in the colour of the look.
  * Same trick as the club's floor labels: project the footprint's centre, lift it by the building's height.
  */
-function Beacon({ map, building, color, text }: { map: mapboxgl.Map; building: ClubBuilding; color: string; text: string }) {
+export function Beacon({ map, building, color, text, icon: Icon = ShoppingBag }: {
+  map: mapboxgl.Map
+  building: ClubBuilding
+  color: string
+  text: string
+  icon?: typeof ShoppingBag
+}) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const [lng, lat] = building.ring.reduce(([x, y], [a, b]) => [x + a / building.ring.length, y + b / building.ring.length], [0, 0])
@@ -52,7 +58,7 @@ function Beacon({ map, building, color, text }: { map: mapboxgl.Map; building: C
     <div ref={ref} className="pointer-events-none absolute top-0 left-0 z-10 flex animate-fade-in flex-col items-center">
       <span className="spatial-glass flex items-center gap-2 rounded-full py-1.5 pr-3.5 pl-2 text-sm font-medium whitespace-nowrap text-ink">
         <span className="grid size-6 place-items-center rounded-full" style={{ background: color }}>
-          <ShoppingBag size={13} className="text-white" />
+          <Icon size={13} className="text-white" />
         </span>
         {text}
       </span>

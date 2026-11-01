@@ -12,6 +12,8 @@ import type { OutfitChoice } from './immersive/FloorTiles'
 import type { FloorId } from '../data/floors'
 import { COLORS } from '../data/costumes'
 import { SHOP } from '../data/shop'
+import { CASINO } from '../data/casino'
+import CasinoDetails from './CasinoDetails'
 import { BASEL_CAMERA, BASEL_PLACES, HAFENLICHT_CLUB, type Place } from '../data/basel'
 
 // Web Mercator y (0 at the top, 1 at the bottom) for a latitude
@@ -48,6 +50,17 @@ const FLOOR_CAMERA: Record<FloorId, mapboxgl.CameraOptions> = {
 // How far the city steps back: indoors it's gone, on the roof it's the view (story: Journey.tsx mapMood)
 const FLOOR_MOOD: Record<FloorId, string> = { 'main-hall': 'brightness-[0.2] blur-[10px]', rooftop: 'brightness-90 blur-[1.5px]' }
 const EXTRUDED = ['==', ['get', 'extrude'], 'true'] as const
+
+// Buildings drawn by their own layer (club, mall, casino), kept out of the grey layer so the walls don't z-fight
+const excluded = new WeakMap<mapboxgl.Map, Set<string | number>>()
+function exclude(m: mapboxgl.Map, id: string | number, on: boolean) {
+  const ids = excluded.get(m) ?? new Set()
+  excluded.set(m, ids)
+  if (on) ids.add(id)
+  else ids.delete(id)
+  if (!m.getLayer('3d-buildings')) return
+  m.setFilter('3d-buildings', ['all', EXTRUDED, ...[...ids].map((i) => ['!=', ['id'], i])] as unknown as mapboxgl.FilterSpecification)
+}
 
 /** 3D buildings like bako: grey extrusions from zoom 15, under the labels */
 function add3dBuildings(m: mapboxgl.Map, dark: boolean) {
@@ -97,7 +110,7 @@ function highlightBuilding(m: mapboxgl.Map, dark: boolean): ClubBuilding | undef
   }
   if (!building || building.id == null || m.getLayer('gem-building')) return
   // Drop the club from the grey layer, otherwise the layers' walls overlap and z-fight (stripes)
-  m.setFilter('3d-buildings', ['all', EXTRUDED, ['!=', ['id'], building.id]] as unknown as mapboxgl.FilterSpecification)
+  exclude(m, building.id, true)
   const filter = ['==', ['id'], building.id] as mapboxgl.FilterSpecification
   const base = { type: 'fill-extrusion' as const, source: 'composite', 'source-layer': 'building', filter }
   // Rest of the building, grey like its neighbours
@@ -153,26 +166,29 @@ const SHOP_CAMERA = { center: SHOP.lngLat, zoom: 17.5, pitch: 60, bearing: -20, 
 const SHOP_FLY_MS = 3000
 const SHOP_RISE_MS = 1400
 
+// On from the mall to the casino: same move, out by the airport road
+const CASINO_CAMERA = { center: CASINO.lngLat, zoom: 17.3, pitch: 60, bearing: 25, offset: [0, 60] as [number, number] }
+
 /**
- * Light up the mall like bako lights up a bakery, but in the colour of the look: the building rises out of the ground.
- * Returns its footprint (for the beacon) and a cleanup.
+ * Light up a building like bako lights up a bakery (the mall in the colour of the look, the casino in gold):
+ * it rises out of the ground. Returns its footprint (for the beacon) and a cleanup.
  */
-function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding | null; cleanup: () => void } {
-  const p = m.project(SHOP.lngLat)
+function highlightRising(m: mapboxgl.Map, lngLat: [number, number], layerId: string, color: string): { building: ClubBuilding | null; cleanup: () => void } {
+  const p = m.project(lngLat)
   let building: (mapboxgl.GeoJSONFeature & { id?: string | number }) | undefined
   for (const r of [8, 24, 48]) {
     building = m.queryRenderedFeatures([[p.x - r, p.y - r], [p.x + r, p.y + r]], { layers: ['3d-buildings'] })[0]
     if (building) break
   }
-  if (!building || building.id == null) return { building: null, cleanup: () => {} }
-  const before = m.getFilter('3d-buildings')
+  if (!building || building.id == null || m.getLayer(layerId)) return { building: null, cleanup: () => {} }
+  const id = building.id
   // Out of the grey layer, so the rising building isn't hidden inside its own grey copy
-  m.setFilter('3d-buildings', ['all', before ?? EXTRUDED, ['!=', ['id'], building.id]] as unknown as mapboxgl.FilterSpecification)
-  const filter = ['==', ['id'], building.id] as mapboxgl.FilterSpecification
+  exclude(m, id, true)
+  const filter = ['==', ['id'], id] as mapboxgl.FilterSpecification
   const base = { source: 'composite', 'source-layer': 'building', filter }
   m.addLayer({
     ...base,
-    id: 'shop-building',
+    id: layerId,
     type: 'fill-extrusion',
     paint: {
       'fill-extrusion-color': color,
@@ -185,10 +201,10 @@ function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding
   // Rise with an ease-out
   const start = performance.now()
   let frame = requestAnimationFrame(function tick(now) {
-    if (!m.getLayer('shop-building')) return
+    if (!m.getLayer(layerId)) return
     const t = Math.min(1, (now - start) / SHOP_RISE_MS)
     const k = 1 - (1 - t) ** 3
-    m.setPaintProperty('shop-building', 'fill-extrusion-height', [
+    m.setPaintProperty(layerId, 'fill-extrusion-height', [
       '+', ['get', 'min_height'], ['*', ['-', ['get', 'height'], ['get', 'min_height']], k],
     ] as unknown as mapboxgl.ExpressionSpecification)
     if (t < 1) frame = requestAnimationFrame(tick)
@@ -197,15 +213,15 @@ function highlightShop(m: mapboxgl.Map, color: string): { building: ClubBuilding
   const polygons = (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []) as number[][][][]
   return {
     building: {
-      id: building.id,
+      id,
       ring: polygons.map((poly) => poly[0]).flat() as [number, number][],
       base: Number(properties?.min_height ?? 0),
       height: Number(properties?.height ?? 0),
     },
     cleanup: () => {
       cancelAnimationFrame(frame)
-      if (m.getLayer('shop-building')) m.removeLayer('shop-building')
-      if (m.getLayer('3d-buildings')) m.setFilter('3d-buildings', before ?? (EXTRUDED as unknown as mapboxgl.FilterSpecification))
+      if (m.getLayer(layerId)) m.removeLayer(layerId)
+      exclude(m, id, false)
     },
   }
 }
@@ -244,7 +260,7 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop }: {
+export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop, casino = false, onCasino }: {
   places: Place[] | null
   /** Presentation mock: always fly to the hand-tuned BASEL_CAMERA instead of fitting the places */
   fixedCamera?: boolean
@@ -260,6 +276,10 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
   onFloor?: (floor: FloorId | null) => void
   /** Off to the mall with a look (or back from it), so the chat can show what we're shopping for */
   onShop?: (choice: OutfitChoice | null) => void
+  /** On from the mall to the casino (only once we're at the mall) */
+  casino?: boolean
+  /** Back from the casino to the mall */
+  onCasino?: (on: boolean) => void
 }) {
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; stopSpin: () => void } | null>(null)
   const [map, setMap] = useState<mapboxgl.Map | null>(null)
@@ -322,7 +342,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
     map.flyTo({ ...SHOP_CAMERA, duration: SHOP_FLY_MS, essential: true })
     let cleanup: (() => void) | undefined
     const onIdle = () => {
-      const found = highlightShop(map, shopColor)
+      const found = highlightRising(map, SHOP.lngLat, 'shop-building', shopColor)
       setShopBuilding(found.building)
       setAtShop(true)
       cleanup = found.cleanup
@@ -341,6 +361,37 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
     setShop(null)
     onShop?.(null)
     map?.flyTo({ ...GEM_CAMERA, duration: SHOP_FLY_MS, essential: true })
+  }
+
+  // "a" at the mall: fly on to the casino, its building rises in gold
+  const toCasino = casino && !!shop
+  const [casinoBuilding, setCasinoBuilding] = useState<ClubBuilding | null>(null)
+  const [atCasino, setAtCasino] = useState(false)
+  useEffect(() => {
+    if (!map || !toCasino) return
+    const dark = document.documentElement.dataset.theme !== 'light'
+    add3dBuildings(map, dark)
+    map.flyTo({ ...CASINO_CAMERA, duration: SHOP_FLY_MS, essential: true })
+    let cleanup: (() => void) | undefined
+    const onIdle = () => {
+      const found = highlightRising(map, CASINO.lngLat, 'casino-building', CASINO.color)
+      setCasinoBuilding(found.building)
+      setAtCasino(true)
+      cleanup = found.cleanup
+    }
+    const onArrive = () => map.once('idle', onIdle)
+    map.once('moveend', onArrive)
+    return () => {
+      map.off('moveend', onArrive)
+      map.off('idle', onIdle)
+      cleanup?.()
+      setCasinoBuilding(null)
+      setAtCasino(false)
+    }
+  }, [map, toCasino])
+  const leaveCasino = () => {
+    onCasino?.(false)
+    map?.flyTo({ ...SHOP_CAMERA, duration: SHOP_FLY_MS, essential: true })
   }
 
   // Into a floor: dive at it. Out again: back across the street (unless we're off to the shops).
@@ -394,7 +445,9 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
       {arrivedAtGem && !shop && <ClubDetails />}
 
       {/* Cards wait for the camera to land, like the club's */}
-      {map && shop && atShop && !floor && <ShopDetails key={`${shop.outfit}-${shop.color}`} map={map} building={shopBuilding} choice={shop} onBack={leaveShop} />}
+      {map && shop && atShop && !floor && !toCasino && <ShopDetails key={`${shop.outfit}-${shop.color}`} map={map} building={shopBuilding} choice={shop} onBack={leaveShop} />}
+
+      {map && toCasino && atCasino && !floor && <CasinoDetails map={map} building={casinoBuilding} onBack={leaveCasino} />}
 
       {searching !== null && (
         <span className="spatial-glass absolute top-3 right-3 flex max-w-[60%] animate-fade-in items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sidebar-collapsed:top-16 sidebar-collapsed:right-4">
@@ -408,7 +461,7 @@ export default function GlobeView({ places, fixedCamera = false, focused = false
 
       {map && (
         <span className="absolute top-3 left-1/2 sidebar-collapsed:top-10 flex h-8 -translate-x-1/2 animate-fade-in items-center gap-1.5 rounded-full bg-surface/80 px-3 text-xs font-medium backdrop-blur">
-          <MapPin size={14} className="text-clay" /> {shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
+          <MapPin size={14} className="text-clay" /> {toCasino ? `${CASINO.name} · Basel` : shop ? `${SHOP.name} · Basel` : arrivedAtGem ? `${GEM.name} · Basel` : 'Basel, Switzerland'}
         </span>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
-import { BookOpen, Code, Coffee, Lightbulb, PenLine, ShoppingBag, Sparkles } from 'lucide-react'
+import { BookOpen, Code, Coffee, Dices, Lightbulb, PenLine, ShoppingBag, Sparkles } from 'lucide-react'
+import { CASINO } from '../data/casino'
 import ChatInput from '../components/ChatInput'
 import ClaudeLogo from '../components/ClaudeLogo'
 import { BRAND } from '../brand'
@@ -21,6 +22,7 @@ const SUGGESTIONS = [
 
 // Intents "detected" from the conversation once the hidden gem is unlocked
 const INTENTS = ['Techno', 'Hardcore']
+const CASINO_INTENTS = ['Roulette', 'Black Jack', 'Poker']
 
 const greeting = () => {
   const h = new Date().getHours()
@@ -39,10 +41,13 @@ export default function Home() {
   const [floor, setFloor] = useState<FloorId | null>(null)
   // At the mall with the crew's look: the pills show what we're shopping for
   const [look, setLook] = useState<OutfitChoice | null>(null)
+  // Demo: pressing "a" again at the mall flies on to the casino
+  const [casino, setCasino] = useState(false)
   useEffect(() => {
     setFocused(false)
     setFloor(null)
     setLook(null)
+    setCasino(false)
     if (!unlocked) return
     const t = setTimeout(() => setFocused(true), 1050 + 500)
     return () => clearTimeout(t)
@@ -67,6 +72,7 @@ export default function Home() {
     setQuery(null)
     setFloor(null)
     setLook(null)
+    setCasino(false)
     setVoice(false)
     setUnlocked(false)
   }, [key])
@@ -94,11 +100,14 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key.toLowerCase() === 'a') setUnlocked(true)
+      if (e.key.toLowerCase() !== 'a') return
+      // At the mall: on to the casino; otherwise unlock the hidden gem
+      if (look && !floor) setCasino(true)
+      else setUnlocked(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [query])
+  }, [query, look, floor])
 
   // Claude answers with the map right in the chat: the agent searches, the globe spins until its picks arrive
   if (query) {
@@ -129,21 +138,35 @@ export default function Home() {
             onClubFloorsClick={(f) => setFloor(f === 'lower' ? 'main-hall' : 'rooftop')}
             floor={floor}
             onFloor={setFloor}
-            onShop={setLook}
+            onShop={(choice) => {
+              setLook(choice)
+              if (!choice) setCasino(false)
+            }}
+            casino={casino}
+            onCasino={setCasino}
           />
         </div>
         <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pb-4">
           {unlocked && (() => {
-            // At the mall the pills follow the look; otherwise the club's intents
+            // At the casino its games; at the mall the pills follow the look; otherwise the club's intents
+            const atCasino = casino && !!look
             const outfit = look && outfitById(look.outfit)
             const color = look && COLORS.find((c) => c.id === look.color)!
-            const pills: { label: string; dot?: string }[] =
-              outfit && color
+            const pills: { label: string; dot?: string }[] = atCasino
+              ? CASINO_INTENTS.map((label) => ({ label }))
+              : outfit && color
                 ? [{ label: outfit.name }, { label: color.name, dot: color.hex }]
                 : INTENTS.map((label) => ({ label }))
             return (
-              <div key={outfit ? `${outfit.id}-${color!.id}` : 'club'} className="mb-3 flex flex-wrap items-center justify-center gap-2">
-                {outfit && color ? (
+              <div key={atCasino ? 'casino' : outfit ? `${outfit.id}-${color!.id}` : 'club'} className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                {atCasino ? (
+                  <span
+                    className="flex animate-pill-in items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-black"
+                    style={{ background: CASINO.color, boxShadow: `0 0 16px ${CASINO.color}66` }}
+                  >
+                    <Dices size={13} /> {CASINO.name}
+                  </span>
+                ) : outfit && color ? (
                   <span
                     className="flex animate-pill-in items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
                     style={{ background: color.hex, boxShadow: `0 0 16px ${color.hex}66` }}
