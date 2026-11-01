@@ -244,8 +244,10 @@ function makeClubFloorsInteractive(m: mapboxgl.Map, id: string | number, onClick
  * - sidebar open: an inset, rounded window into the map that dissolves on every side
  * - sidebar collapsed: the map fills the whole chat behind the messages, top to edges, and fades out at the bottom
  */
-export default function GlobeView({ places, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop }: {
+export default function GlobeView({ places, fixedCamera = false, focused = false, searching = null, onClubFloorsClick, floor = null, onFloor, onShop }: {
   places: Place[] | null
+  /** Presentation mock: always fly to the hand-tuned BASEL_CAMERA instead of fitting the places */
+  fixedCamera?: boolean
   /** Zoom into the hidden gem in 3D and show its detail cards */
   focused?: boolean
   /** While the agent searches: what it's looking up right now ('' before its first step); null when done */
@@ -360,7 +362,7 @@ export default function GlobeView({ places, focused = false, searching = null, o
       const { map: m, stopSpin } = loaded
       stopSpin()
       const { clientWidth: w, clientHeight: h } = m.getContainer()
-      const camera = places.length ? fit(places, w, h) : BASEL_CAMERA
+      const camera = places.length && !fixedCamera ? fit(places, w, h) : BASEL_CAMERA
       m.flyTo({ ...camera, bearing: 0, pitch: 0, duration: FLY_DURATION_MS, essential: true })
       // Registered after flyTo, so the interrupted spin animation's moveend doesn't count
       m.once('moveend', () => setMap(m))

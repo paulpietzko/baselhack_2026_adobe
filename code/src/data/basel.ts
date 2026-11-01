@@ -43,6 +43,7 @@ export const BASEL_PLACES: Place[] = [
     iconColor: '#a99ff0',
     cardAngle: 180,
     cardDistance: 260,
+    image: '/escape_room.jpg',
   },
   {
     id: 'night-market',
@@ -55,7 +56,8 @@ export const BASEL_PLACES: Place[] = [
     tint: '#4a3222',
     iconColor: '#e8a571',
     cardAngle: -105,
-    cardDistance: 200,
+    cardDistance: 280,
+    image: '/street_food.jpg',
   },
   {
     id: 'hexenkessel',
@@ -98,6 +100,7 @@ export const BASEL_PLACES: Place[] = [
     iconColor: '#f0a050',
     cardAngle: 205,
     cardDistance: 270,
+    image: '/rave.jpg',
   },
 ]
 

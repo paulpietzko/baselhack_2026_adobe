@@ -122,6 +122,7 @@ export default function Home() {
           <GlobeView
             key={query}
             places={places}
+            fixedCamera={voice}
             focused={focused}
             searching={answer ? null : (step ?? '')}
             // The building's lower clay floor is the Main Hall, the upper one the Rooftop

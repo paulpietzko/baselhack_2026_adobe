@@ -7,8 +7,8 @@ const CARD_WIDTH = 220
 const CARD_HEIGHT = 190 // approximate, used to lay cards out
 // Where cards may land on arrival: clear of the edges and the location pill on top
 const SAFE = { top: 52, bottom: 16, side: 16 }
-// Full-width mode sits behind the top bar and messages, and fades out at the bottom
-const SAFE_FULL = { top: 200, bottom: 150, side: 24 }
+// Full-width mode: the messages are hidden, so only keep clear of the top bar and location pill; fades out at the bottom
+const SAFE_FULL = { top: 120, bottom: 150, side: 24 }
 
 const GAP = 12 // min space between cards
 
