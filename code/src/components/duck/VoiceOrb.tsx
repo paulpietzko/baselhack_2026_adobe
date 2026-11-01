@@ -147,8 +147,8 @@ const Glyph = ({ icon: Icon, label }: { icon: LucideIcon; label: string }) => (
   </span>
 )
 
-/** The only instructions on screen, as few words as will do, and the place a scripted microphone admits it */
-export function VoiceHint({ listening, missed, scripted, palm = true }: { listening: boolean; missed: boolean; scripted: boolean; palm?: boolean }) {
+/** The only instructions on screen, as few words as will do */
+export function VoiceHint({ listening, missed, palm = true }: { listening: boolean; missed: boolean; palm?: boolean }) {
   const hands = useHands().mode !== 'off'
   return (
     <div className="mt-2.5 flex flex-col items-center gap-0.5 text-[11px] text-muted [text-shadow:0_1px_6px_rgb(13_24_34/0.95)]">
@@ -165,7 +165,6 @@ export function VoiceHint({ listening, missed, scripted, palm = true }: { listen
           <Glyph icon={Mic} label={missed ? 'again?' : 'space'} />
         )}
       </p>
-      {scripted && <p className="opacity-70">Scripted voice</p>}
     </div>
   )
 }

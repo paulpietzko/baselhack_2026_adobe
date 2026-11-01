@@ -23,7 +23,7 @@ const DIVE_MS = 850
 // A first line can be replaced straight away: don't start saying one that's about to go
 const SPEAK_DELAY_MS = 500
 
-const THOUGHTS = ['What can I do in Basel?', 'Somewhere to dance tonight']
+const THOUGHTS = ['What can we do in Basel?', 'Somewhere to dance tonight']
 // The second beat of the story: the venues are on the map, and the crew knows what it's in the mood for
 const HALLOWEEN_LINE = "Hm, it's Halloween, we're feeling like going partying."
 
@@ -400,7 +400,7 @@ export default function Home() {
               </VoiceOrb>
             </div>
             {failed && !unlocked && <p className="mt-1 text-[11px] text-muted">Demo picks: live search unavailable</p>}
-            <VoiceHint listening={voice.listening} missed={voice.missed} scripted={voice.scripted} palm={!unlocked} />
+            <VoiceHint listening={voice.listening} missed={voice.missed} palm={!unlocked} />
           </div>
         </>
       )}
@@ -434,7 +434,7 @@ export default function Home() {
                   </p>
                 )}
                 <div className={`transition-opacity duration-500 ${sent ? 'opacity-0' : ''}`}>
-                  <VoiceHint listening={voice.listening} missed={voice.missed} scripted={voice.scripted} palm={!unlocked} />
+                  <VoiceHint listening={voice.listening} missed={voice.missed} palm={!unlocked} />
                 </div>
               </div>
         </main>
