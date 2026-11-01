@@ -10,12 +10,14 @@ const club = BASEL_PLACES.find((p) => p.id === HAFENLICHT_CLUB.id)!
 /** Tonight in order: change at the mall, try your luck, dance it off */
 const STOPS = [
   { name: SHOP.name, time: '20:00', what: 'Change into costume', image: '/shopping_mall.jpg', color: '#e0566b', lngLat: SHOP.lngLat },
-  { name: CASINO.name, time: '21:15', what: 'Try your luck · CHF 20 free play', image: CASINO.image, color: CASINO.color, lngLat: CASINO.lngLat },
+  { name: CASINO.name, time: '21:15', what: 'Try your luck · CHF 20 free play', image: CASINO.image, color: CASINO.color, lngLat: CASINO.lngLat, labelLeft: true },
   { name: club.name, time: '23:00', what: 'Dance it off till late', image: club.image ?? '', color: '#d97757', lngLat: club.lngLat },
 ]
 
 const LINE = '#d97757'
 const DRAW_MS = 2200
+// Start drawing once the camera has mostly zoomed out
+const DRAW_DELAY_MS = 1400
 
 type Leg = { meters: number; minutes: number }
 
@@ -25,7 +27,37 @@ function meters([lng1, lat1]: [number, number], [lng2, lat2]: [number, number]) 
   return 2 * 6371000 * Math.asin(Math.sqrt(a))
 }
 
-/** Walking route through the stops (Mapbox Directions); straight lines if that fails */
+/**
+ * Waypoints the walk passes on the way *to* each stop, so the two legs stay apart on the map:
+ * - mall → casino along the Rhine (St. Johanns-Rheinweg), in from the north past Volta
+ * - casino → club down the west side (St. Johann, Iselin, Schützenmatt), then curving east south of the old town
+ */
+const VIA: [number, number][][] = [
+  [],
+  [
+    [7.5822, 47.565],
+    [7.57, 47.5745],
+  ],
+  [
+    [7.5728, 47.5621],
+    [7.576, 47.5546],
+    [7.5849, 47.5495],
+  ],
+]
+
+/** One leg of the walk, through its waypoints */
+async function walkingLeg(points: [number, number][], signal: AbortSignal) {
+  const res = await fetch(
+    `https://api.mapbox.com/directions/v5/mapbox/walking/${points.map((p) => p.join(',')).join(';')}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`,
+    { signal },
+  )
+  if (!res.ok) throw new Error(`Directions ${res.status}`)
+  const route = (await res.json()).routes?.[0]
+  if (!route) throw new Error('No route')
+  return { coords: route.geometry.coordinates as [number, number][], leg: { meters: route.distance, minutes: Math.round(route.duration / 60) } }
+}
+
+/** Walking route through the stops, leg by leg (Mapbox Directions); straight lines if that fails */
 async function walkingRoute(signal: AbortSignal): Promise<{ coords: [number, number][]; legs: Leg[] }> {
   const straight = () => ({
     coords: STOPS.map((s) => s.lngLat),
@@ -35,22 +67,58 @@ async function walkingRoute(signal: AbortSignal): Promise<{ coords: [number, num
     }),
   })
   try {
-    const path = STOPS.map((s) => s.lngLat.join(',')).join(';')
-    const res = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/walking/${path}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`,
-      { signal },
-    )
-    if (!res.ok) return straight()
-    const route = (await res.json()).routes?.[0]
-    if (!route) return straight()
-    return {
-      coords: route.geometry.coordinates,
-      legs: route.legs.map((l: { distance: number; duration: number }) => ({ meters: l.distance, minutes: Math.round(l.duration / 60) })),
-    }
+    const legs = await Promise.all(STOPS.slice(1).map((s, i) => walkingLeg([STOPS[i].lngLat, ...VIA[i + 1], s.lngLat], signal)))
+    return { coords: legs.flatMap((l) => l.coords), legs: legs.map((l) => l.leg) }
   } catch {
     if (signal.aborted) throw new Error('aborted')
     return straight()
   }
+}
+
+/**
+ * The route as an SVG overlay, like activity_overview_mock: dots in screen pixels (same at every zoom,
+ * unlike Mapbox's line-dasharray which merges on dense walking geometry), marching forward via CSS.
+ * Draws itself from the first stop to the last once the camera has zoomed out.
+ */
+function RouteLine({ map, coords }: { map: mapboxgl.Map; coords: [number, number][] }) {
+  const casing = useRef<SVGPathElement>(null)
+  const dots = useRef<SVGPathElement>(null)
+  useEffect(() => {
+    const start = performance.now() + DRAW_DELAY_MS
+    let frame = 0
+    const draw = () => {
+      const t = Math.max(0, Math.min(1, (performance.now() - start) / DRAW_MS))
+      const n = Math.ceil(coords.length * (1 - (1 - t) ** 2))
+      let d = ''
+      let last: mapboxgl.Point | null = null
+      for (let i = 0; i < n; i++) {
+        const p = map.project(coords[i])
+        // Skip points closer than a pixel to the last one: same look, much shorter path
+        if (last && i < n - 1 && Math.abs(p.x - last.x) + Math.abs(p.y - last.y) < 1.5) continue
+        d += `${last ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+        last = p
+      }
+      casing.current?.setAttribute('d', d)
+      dots.current?.setAttribute('d', d)
+      return t < 1
+    }
+    const tick = () => {
+      if (draw()) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    map.on('render', draw)
+    return () => {
+      cancelAnimationFrame(frame)
+      map.off('render', draw)
+    }
+  }, [map, coords])
+
+  return (
+    <svg className="absolute inset-0 size-full overflow-visible">
+      <path ref={casing} fill="none" stroke="rgb(0 0 0 / 0.45)" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+      <path ref={dots} className="animate-route-dash" fill="none" stroke={LINE} strokeWidth={4} strokeDasharray="2 9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 /** Numbered pin on the map, kept in place as the camera moves */
@@ -79,7 +147,7 @@ function Pin({ map, stop, n, active, onHover }: { map: mapboxgl.Map; stop: (type
         >
           {n}
         </span>
-        <span className="absolute left-full ml-2 rounded-lg bg-white/95 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-black shadow-lg">
+        <span className={`absolute ${'labelLeft' in stop && stop.labelLeft ? 'right-full mr-2' : 'left-full ml-2'} rounded-lg bg-white/95 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-black shadow-lg`}>
           {stop.name}
         </span>
       </div>
@@ -117,38 +185,17 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
     })
   }, [map])
 
-  // The walking line, drawing itself from the mall to the club
+  // The walking route, drawn as a marching dotted line (RouteLine)
+  const [coords, setCoords] = useState<[number, number][] | null>(null)
   useEffect(() => {
     const abort = new AbortController()
-    let frame = 0
     walkingRoute(abort.signal)
       .then(({ coords, legs }) => {
+        setCoords(coords)
         setLegs(legs)
-        const data = (c: [number, number][]) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: c } })
-        if (!map.getSource('night-route')) map.addSource('night-route', { type: 'geojson', data: data(coords.slice(0, 1)) })
-        if (!map.getLayer('night-route-casing'))
-          map.addLayer({ id: 'night-route-casing', type: 'line', source: 'night-route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1a1a1a', 'line-width': 9, 'line-opacity': 0.8 } })
-        if (!map.getLayer('night-route'))
-          map.addLayer({ id: 'night-route', type: 'line', source: 'night-route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': LINE, 'line-width': 4, 'line-dasharray': [0.6, 1.6] } })
-        // Start drawing once the camera has mostly zoomed out
-        const start = performance.now() + 1400
-        const tick = (now: number) => {
-          const t = Math.max(0, Math.min(1, (now - start) / DRAW_MS))
-          const k = 1 - (1 - t) ** 2
-          const n = Math.max(2, Math.ceil(coords.length * k))
-          ;(map.getSource('night-route') as mapboxgl.GeoJSONSource | undefined)?.setData(data(coords.slice(0, n)))
-          if (t < 1) frame = requestAnimationFrame(tick)
-        }
-        frame = requestAnimationFrame(tick)
       })
       .catch(() => {})
-    return () => {
-      abort.abort()
-      cancelAnimationFrame(frame)
-      if (map.getLayer('night-route')) map.removeLayer('night-route')
-      if (map.getLayer('night-route-casing')) map.removeLayer('night-route-casing')
-      if (map.getSource('night-route')) map.removeSource('night-route')
-    }
+    return () => abort.abort()
   }, [map])
 
   useEffect(() => {
@@ -160,6 +207,7 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
 
   return (
     <div className="pointer-events-none absolute inset-0 font-system">
+      {coords && <RouteLine map={map} coords={coords} />}
       {STOPS.map((s, i) => (
         <Pin key={s.name} map={map} stop={s} n={i + 1} active={active === i} onHover={(on) => setActive(on ? i : null)} />
       ))}

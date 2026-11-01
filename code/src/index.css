@@ -54,6 +54,12 @@
   --animate-bar-in: bar-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade-in: fade-in 400ms ease-out 300ms both;
 
+  /* The night's route marching forward, like activity_overview_mock (one dot+gap = 11px, 4 per cycle) */
+  --animate-route-dash: route-dash 2s linear infinite;
+  @keyframes route-dash {
+    to { stroke-dashoffset: -44; }
+  }
+
   /* Light sweeping across the casino's jackpot banner, then a pause */
   --animate-jackpot-shine: jackpot-shine 3.2s ease-in-out infinite;
   @keyframes jackpot-shine {
