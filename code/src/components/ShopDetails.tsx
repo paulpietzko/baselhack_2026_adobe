@@ -105,6 +105,7 @@ export default function ShopDetails({ map, building, choice, onBack }: {
       {/* Top left: back to the club */}
       <button
         onClick={onBack}
+        data-hand-back
         className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
       >
         <ArrowLeft size={14} /> Back to {club.name}
@@ -204,6 +205,7 @@ export default function ShopDetails({ map, building, choice, onBack }: {
             <button
               onClick={() => setHeld(true)}
               disabled={held}
+              data-hand-hold
               className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-3 text-[13px] font-semibold text-white transition-colors ${held ? 'bg-emerald-600' : 'bg-clay hover:bg-clay-dark'}`}
             >
               {held ? (

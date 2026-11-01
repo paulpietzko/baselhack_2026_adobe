@@ -1,4 +1,5 @@
 import { Outlet, Route, Routes } from 'react-router'
+import HandLayer from './components/duck/HandLayer'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Home from './pages/Home'
@@ -22,7 +23,15 @@ export default function App() {
   return (
     <Routes>
       <Route element={<ClaudeShell />}>
-        <Route path="/" element={<Home />} />
+        <Route
+          path="/"
+          element={
+            <>
+              <Home />
+              <HandLayer />
+            </>
+          }
+        />
         <Route path="/scene" element={<Scene />} />
         <Route path="/test-map" element={<TestMap />} />
       </Route>

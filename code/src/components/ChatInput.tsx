@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowUp, Keyboard, LoaderCircle, Mic, Plus, Presentation, SlidersHorizontal, X } from 'lucide-react'
 import Waveform from './Waveform'
 import { useSpeech } from '../hooks/useSpeech'
+import { liveVoice } from '../lib/hands'
 
 const iconBtn = 'grid size-8 place-items-center rounded-lg border border-border text-muted hover:bg-bubble'
 
@@ -26,7 +27,10 @@ export default function ChatInput({
   voiceMode = false,
   onEndVoice,
   thinking,
+  palm = true,
 }: {
+  /** Whether a raised palm starts listening */
+  palm?: boolean
   /** The agent is working out what was said: show this with a spinner instead of the placeholder */
   thinking?: string
   /** viaMock: sent by the presentation mock, so the conversation continues in the voice bar */
@@ -100,6 +104,22 @@ export default function ChatInput({
       window.removeEventListener('keydown', onKey)
     }
   }, [listening, mock]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A raised palm and a closed fist, from the hand layer. The real mic only if the page opened in gesture mode, see liveVoice.
+  useEffect(() => {
+    const talk = () => {
+      if (!palm || listening) return
+      if (liveVoice && speech.supported) speech.start()
+      else startMock()
+    }
+    const quiet = () => listening && cancel()
+    window.addEventListener('duck:talk', talk)
+    window.addEventListener('duck:cancel', quiet)
+    return () => {
+      window.removeEventListener('duck:talk', talk)
+      window.removeEventListener('duck:cancel', quiet)
+    }
+  }, [palm, listening, mock]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (voiceMode && !listening && !typing) {
     // Presentation voice bar: live waveform, slides in with animate-bar-in

@@ -11,6 +11,7 @@ import type { FloorId } from '../data/floors'
 import { COLORS, outfitById } from '../data/costumes'
 import type { OutfitChoice } from '../components/immersive/FloorTiles'
 import { searchPlaces, type Answer } from '../data/search'
+import { pointing } from '../lib/hands'
 
 const SUGGESTIONS = [
   { icon: PenLine, label: 'Write' },
@@ -118,10 +119,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!query) return
-    const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement
-      if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key.toLowerCase() !== 'a' || pending) return
+    const advance = () => {
+      if (pending) return
       // At the mall: on to the casino (then the night's route); otherwise unlock the hidden gem
       if (look && !floor) {
         if (!casino) {
@@ -136,9 +135,26 @@ export default function Home() {
         setPending('gem')
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key.toLowerCase() === 'a') advance()
+    }
+    // Pinch and pull goes one level closer, and pushing steps back out
+    const onZoom = (e: Event) => {
+      if ((e as CustomEvent<'in' | 'out'>).detail === 'out') return document.querySelector<HTMLElement>('[data-hand-back]')?.click()
+      if (focused && !look && !floor) {
+        if (pointing.el) pointing.el.click()
+        else setFloor('main-hall')
+      } else advance()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [query, look, floor, casino, route, unlocked, pending])
+    window.addEventListener('duck:zoom', onZoom)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('duck:zoom', onZoom)
+    }
+  }, [query, look, floor, casino, route, unlocked, pending, focused])
 
   // Claude answers with the map right in the chat: the agent searches, the globe spins until its picks arrive
   if (query) {
@@ -245,6 +261,8 @@ export default function Home() {
               onSend={ask}
               placeholder={`Reply to ${BRAND}…`}
               voiceMode={voice}
+              // Hands stay busy once the night is under way, pointing and pinching: a new question would throw it away
+              palm={!unlocked}
               thinking={pending ? THINKING[pending] : undefined}
               onEndVoice={() => setVoice(false)}
             />

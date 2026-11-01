@@ -214,6 +214,7 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
 
       <button
         onClick={onBack}
+        data-hand-back
         className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
       >
         <ArrowLeft size={14} /> Back to {CASINO.name}
@@ -231,6 +232,7 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
             <span className="font-medium">Dress up. Cash in. Dance it off.</span>
             <button
               onClick={() => setStarted(true)}
+              data-hand-hold
               className="rounded-full bg-clay px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-clay-dark"
             >
               Let's haunt
@@ -244,6 +246,7 @@ export default function RouteOverview({ map, onBack }: { map: mapboxgl.Map; onBa
         {STOPS.map((s, i) => (
           <article
             key={s.name}
+            data-hand-peek
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive(null)}
             className={`spatial-glass pointer-events-auto animate-card-in overflow-hidden rounded-[22px] text-ink transition-all duration-300 ${

@@ -71,6 +71,7 @@ export default function CasinoDetails({ map, building, onBack }: { map: mapboxgl
       {/* Top left: back to the mall */}
       <button
         onClick={onBack}
+        data-hand-back
         className="spatial-glass pointer-events-auto absolute top-3 left-3 flex animate-fade-in items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:text-clay sidebar-collapsed:top-10 sidebar-collapsed:left-6"
       >
         <ArrowLeft size={14} /> Back to {SHOP.name}

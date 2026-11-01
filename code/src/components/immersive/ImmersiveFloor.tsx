@@ -211,7 +211,7 @@ export default function ImmersiveFloor({ floor, onFloor, onClose, onWhereToGet }
         <button onClick={() => setSound((s) => !s)} aria-label={sound ? 'Mute' : 'Unmute'} className={roundBtn}>
           {sound ? <Volume2 size={19} /> : <VolumeX size={19} />}
         </button>
-        <button onClick={onClose} aria-label="Leave" className={roundBtn}>
+        <button onClick={onClose} aria-label="Leave" data-hand-back className={roundBtn}>
           <X size={19} />
         </button>
       </div>

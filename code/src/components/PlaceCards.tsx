@@ -114,6 +114,7 @@ export default function PlaceCards({ map, places }: { map: mapboxgl.Map; places:
         return (
           <article
             key={place.id}
+            data-hand-peek
             className="pointer-events-auto absolute -translate-1/2"
             style={{ left: card.x, top: card.y, width: CARD_WIDTH }}
           >
